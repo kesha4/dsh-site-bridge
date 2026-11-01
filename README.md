@@ -171,7 +171,7 @@ the expected cost.
 ```powershell
 node test\redact.test.mjs     #  8 — redaction rules
 node test\bridge.test.mjs     #  8 — wire protocol, token, liveness
-node test\artifacts.test.mjs  #  4 — bundle layout
+node test\artifacts.test.mjs  #  5 — bundle layout and large-body spill
 node test\plugin.test.mjs     #  2 — tool registration and the full tool path
 node test\e2e.mjs             # 31 — real Chrome through the wire protocol
 node test\tools-chrome.mjs    # 19 — real Chrome through the tools
