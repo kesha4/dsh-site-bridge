@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="DSH Site Bridge">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b7cff"/>
+      <stop offset="1" stop-color="#2a45e0"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3f5cf0"/>
+      <stop offset="1" stop-color="#2a3fd6"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="128" height="128" rx="26" fill="url(#bg)"/>
+
+  <!-- optical size: inverted tile keeps contrast at 16px -->
+  <rect x="13" y="15" width="102" height="98" rx="20" fill="#ffffff"/>
+
+  <!-- the browser bar, so the tile reads as a page and not a card -->
+  <line x1="13" y1="41" x2="115" y2="41" stroke="url(#ink)" stroke-width="7"/>
+  <circle cx="27" cy="28" r="3.4" fill="url(#ink)"/>
+  <circle cx="39" cy="28" r="3.4" fill="url(#ink)" opacity="0.65"/>
+
+  <!-- whale cut out of the page -->
+  <path d="M72 60 L 96 43 L 88 65 L 96 87 L 70 76 Z" fill="url(#ink)"/>
+  <path d="M24 86 C 24 67, 42 53, 63 55 C 82 57, 91 68, 90 80 C 89 94, 72 101, 53 97 C 37 94, 24 93, 24 86 Z"
+        fill="url(#ink)"/>
+</svg>

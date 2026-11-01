@@ -1,0 +1,56 @@
+{
+  "appName": { "message": "DSH Site Bridge" },
+  "appDesc": {
+    "message": "在您自己的浏览器中为 DeepSeek Harness 提供眼睛和双手：页面结构、BFF 流量、可信输入和虚拟光标。凭据始终留在浏览器中。"
+  },
+  "tagline": { "message": "DeepSeek Harness 在您的浏览器中" },
+
+  "statusConnecting": { "message": "正在检查…" },
+  "statusConnected": { "message": "网桥已连接" },
+  "statusNoBridge": { "message": "网桥无响应" },
+  "statusNotConfigured": { "message": "尚未配置" },
+  "statusWorkerDown": { "message": "扩展服务未响应" },
+
+  "disconnect": { "message": "断开" },
+  "targetNoneTitle": { "message": "未连接标签页" },
+  "targetNoneUrl": { "message": "打开需要的页面并连接它" },
+  "connectTab": { "message": "连接此标签页" },
+  "tabConnected": { "message": "标签页已连接" },
+
+  "connectionTitle": { "message": "配对" },
+  "importBridge": { "message": "导入 bridge.json" },
+  "portLabel": { "message": "网桥端口" },
+  "tokenLabel": { "message": "令牌" },
+  "tokenPlaceholder": { "message": "粘贴令牌或导入文件" },
+  "tokenLength": {
+    "message": "$COUNT$ 个字符",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "hintAutosave": { "message": "自动保存，无需按钮。令牌文件：" },
+  "hintFile": { "message": "~/.dsh/site-bridge/bridge.json" },
+
+  "captureTitle": { "message": "API 录制" },
+  "records": {
+    "message": "$COUNT$ 条记录",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "captureStart": { "message": "开始录制" },
+  "captureStop": { "message": "停止录制" },
+  "captureHint": {
+    "message": "只录制本站的 xhr/fetch。Cookie、CSRF 和令牌的值在写入磁盘前就会替换为 «redacted»。"
+  },
+  "bannerHint": {
+    "message": "Chrome 会显示「已开始调试此浏览器」提示条——这是正常的：输入和网络抓取都通过它进行。"
+  },
+
+  "imported": { "message": "设置已导入" },
+  "importFailed": {
+    "message": "导入失败：$ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "claimFailed": {
+    "message": "连接失败：$ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "claimFailedUnknown": { "message": "未知错误" }
+}

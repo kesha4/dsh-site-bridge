@@ -1,0 +1,56 @@
+{
+  "appName": { "message": "DSH Site Bridge" },
+  "appDesc": {
+    "message": "Hands and eyes for DeepSeek Harness in your own browser: page markup, BFF traffic, trusted input and a virtual cursor. Credentials stay in the browser."
+  },
+  "tagline": { "message": "DeepSeek Harness in your browser" },
+
+  "statusConnecting": { "message": "Checking…" },
+  "statusConnected": { "message": "Bridge connected" },
+  "statusNoBridge": { "message": "Bridge not responding" },
+  "statusNotConfigured": { "message": "Not configured" },
+  "statusWorkerDown": { "message": "Extension service is not responding" },
+
+  "disconnect": { "message": "Disconnect" },
+  "targetNoneTitle": { "message": "No tab connected" },
+  "targetNoneUrl": { "message": "Open the page you need and connect it" },
+  "connectTab": { "message": "Connect this tab" },
+  "tabConnected": { "message": "Tab connected" },
+
+  "connectionTitle": { "message": "Pairing" },
+  "importBridge": { "message": "Import bridge.json" },
+  "portLabel": { "message": "Bridge port" },
+  "tokenLabel": { "message": "Token" },
+  "tokenPlaceholder": { "message": "paste the token or import the file" },
+  "tokenLength": {
+    "message": "$COUNT$ characters",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "hintAutosave": { "message": "Saved automatically, no buttons. Token file:" },
+  "hintFile": { "message": "~/.dsh/site-bridge/bridge.json" },
+
+  "captureTitle": { "message": "API recording" },
+  "records": {
+    "message": "$COUNT$ entries",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "captureStart": { "message": "Start recording" },
+  "captureStop": { "message": "Stop recording" },
+  "captureHint": {
+    "message": "Only this site's xhr/fetch is recorded. Cookie, CSRF and token values become «redacted» before anything is written to disk."
+  },
+  "bannerHint": {
+    "message": "Chrome will show a “started debugging this browser” banner — that is expected: input and network capture run over it."
+  },
+
+  "imported": { "message": "Settings imported" },
+  "importFailed": {
+    "message": "Import failed: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "claimFailed": {
+    "message": "Could not connect: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "claimFailedUnknown": { "message": "unknown error" }
+}

@@ -1,0 +1,1081 @@
+/**
+ * DSH Site Bridge — MV3 service worker.
+ *
+ * Talks to the DSH host over a loopback long-poll bridge, and does all page
+ * work over the Chrome DevTools Protocol through chrome.debugger:
+ *
+ *   - Network capture with real headers and bodies (CDP Network domain).
+ *   - Trusted input: Input.dispatchMouseEvent / insertText / setFileInputFiles,
+ *     i.e. events the page cannot tell apart from a human's.
+ *   - Virtual cursor: a DOM overlay plus real pointer events at its position,
+ *     for controls that ignore synthetic clicks.
+ *   - Snapshot: markup tree, computed styles, selector candidates.
+ *
+ * No credentials are persisted here. Captured traffic is forwarded to the
+ * host, which redacts and never writes it to disk.
+ */
+
+const EXT_VERSION = '0.1.0'
+const NET_CAP = 600
+const BODY_CAP = 400_000
+
+const state = {
+  attachedTabId: null,
+  target: null,
+  recording: false,
+  entries: [],
+  dirty: [],
+  flushing: false,
+  lastPollOk: 0
+}
+
+/* ------------------------------------------------------------------ config */
+
+async function loadCfg() {
+  const stored = await chrome.storage.local.get({ port: 47321, token: '' })
+  return { port: Number(stored.port) || 47321, token: String(stored.token || '') }
+}
+
+function baseUrl(cfg) {
+  return `http://127.0.0.1:${cfg.port}`
+}
+
+async function api(cfg, path, init = {}) {
+  const response = await fetch(baseUrl(cfg) + path, {
+    ...init,
+    headers: { 'content-type': 'application/json', 'x-site-token': cfg.token, ...(init.headers || {}) }
+  })
+  if (!response.ok) throw new Error(`bridge HTTP ${response.status}`)
+  return response.json()
+}
+
+async function evt(kind, payload = {}) {
+  const cfg = await loadCfg()
+  if (!cfg.token) return
+  try {
+    await api(cfg, '/v1/evt', { method: 'POST', body: JSON.stringify({ kind, ...payload }) })
+  } catch {
+    // bridge offline: capture keeps working, nothing to report to
+  }
+}
+
+/* --------------------------------------------------------------- lifecycle */
+
+let looping = false
+
+async function ensureLoop() {
+  if (looping) return
+  looping = true
+  let greeted = false
+  try {
+    for (;;) {
+      const cfg = await loadCfg()
+      if (!cfg.token) {
+        await sleep(1500)
+        continue
+      }
+      try {
+        const reply = await api(cfg, '/v1/poll?timeout=20000')
+        if (!greeted) {
+          greeted = true
+          await evt('hello', { version: EXT_VERSION, browser: navigator.userAgent })
+          if (state.target) await evt('target', { tab: state.target })
+          await evt('netcontrol', { recording: state.recording })
+        }
+        state.lastPollOk = Date.now()
+        state.lastError = null
+        for (const command of reply.commands || []) {
+          void runCommand(cfg, command)
+        }
+      } catch (error) {
+        greeted = false
+        state.lastError = String(error?.message ?? error)
+        await sleep(1200)
+      }
+    }
+  } finally {
+    looping = false
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function runCommand(cfg, command) {
+  let payload
+  try {
+    const data = await handle(command.op, command.args || {})
+    payload = { id: command.id, ok: true, data }
+  } catch (error) {
+    payload = { id: command.id, ok: false, error: String(error?.message ?? error) }
+  }
+  try {
+    await api(cfg, '/v1/result', { method: 'POST', body: JSON.stringify(payload) })
+  } catch {
+    // result lost: the host will time the command out; nothing else to do
+  }
+}
+
+chrome.runtime.onStartup.addListener(() => void ensureLoop())
+chrome.runtime.onInstalled.addListener(() => void ensureLoop())
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  handleMessage(message).then(sendResponse, (error) => sendResponse({ ok: false, error: String(error?.message ?? error) }))
+  return true
+})
+
+async function handleMessage(message) {
+  if (message?.type === 'claim') {
+    await claimTab(message.tabId)
+    return { ok: true, target: state.target }
+  }
+  if (message?.type === 'status') {
+    const cfg = await loadCfg()
+    return {
+      ok: true,
+      configured: cfg.token !== '',
+      port: cfg.port,
+      connected: state.lastPollOk > 0 && Date.now() - state.lastPollOk < 45000,
+      lastError: state.lastError ?? null,
+      target: state.target,
+      recording: state.recording,
+      captured: state.entries.length
+    }
+  }
+  if (message?.type === 'save') {
+    await chrome.storage.local.set({ port: Number(message.port) || 47321, token: String(message.token || '') })
+    state.lastPollOk = 0
+    void ensureLoop()
+    return { ok: true }
+  }
+  if (message?.type === 'release') {
+    await detach()
+    return { ok: true }
+  }
+  if (message?.type === 'toggle-capture') {
+    return { ok: true, recording: await setRecording(message.on === true) }
+  }
+  return { ok: false, error: `unknown message ${message?.type}` }
+}
+
+/* --------------------------------------------------------------- debugging */
+
+async function cdp(method, params = {}) {
+  if (state.attachedTabId == null) throw new Error('no page attached: open the popup and claim the tab first')
+  return chrome.debugger.sendCommand({ tabId: state.attachedTabId }, method, params)
+}
+
+async function detach() {
+  const tabId = state.attachedTabId
+  state.attachedTabId = null
+  state.target = null
+  state.recording = false
+  await evt('target', { tab: null })
+  await evt('netcontrol', { recording: false })
+  if (tabId != null) await chrome.debugger.detach({ tabId }).catch(() => {})
+}
+
+async function attach(tabId) {
+  if (state.attachedTabId === tabId) return
+  if (state.attachedTabId != null) await chrome.debugger.detach({ tabId: state.attachedTabId }).catch(() => {})
+  await chrome.debugger.attach({ tabId }, '1.3')
+  state.attachedTabId = tabId
+  await chrome.debugger.sendCommand({ tabId }, 'Network.enable', {
+    maxTotalBufferSize: 64_000_000,
+    maxResourceBufferSize: 16_000_000,
+    maxPostDataSize: 1_000_000
+  })
+  await chrome.debugger.sendCommand({ tabId }, 'Page.enable').catch(() => {})
+  await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable').catch(() => {})
+  const tab = await chrome.tabs.get(tabId)
+  state.target = { id: tab.id, url: tab.url, title: tab.title }
+  await evt('target', { tab: state.target })
+  await evt('netcontrol', { recording: state.recording })
+}
+
+async function claimTab(tabId) {
+  const tab = await chrome.tabs.get(tabId)
+  if (!/^https?:|^file:/.test(tab.url ?? '')) {
+    throw new Error(`cannot drive ${tab.url || 'this tab'}: only http(s) and file:// pages are supported`)
+  }
+  await attach(tabId)
+  return state.target
+}
+
+chrome.debugger.onDetach.addListener((source, reason) => {
+  if (source.tabId === state.attachedTabId) {
+    state.attachedTabId = null
+    state.target = null
+    state.recording = false
+    void evt('target', { tab: null })
+    void evt('netcontrol', { recording: false })
+    if (reason !== 'target_closed') void evt('error', { message: `debugger detached: ${reason}` })
+  }
+})
+
+/* ----------------------------------------------------------------- network */
+
+const requests = new Map()
+
+function keepEntry(entry) {
+  state.entries.push(entry)
+  state.dirty.push(entry)
+  if (state.entries.length > NET_CAP) state.entries.splice(0, state.entries.length - NET_CAP)
+  scheduleFlush()
+}
+
+function scheduleFlush() {
+  if (state.flushing) return
+  state.flushing = true
+  setTimeout(() => {
+    state.flushing = false
+    const batch = state.dirty.splice(0)
+    if (batch.length > 0) void evt('net', { entries: batch })
+  }, 400)
+}
+
+function hostOf(url) {
+  try {
+    return new URL(String(url)).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
+function registrable(host) {
+  const parts = String(host).split('.').filter(Boolean)
+  return parts.length <= 2 ? String(host) : parts.slice(-2).join('.')
+}
+
+function shouldCapture(params, pageUrl) {
+  // Only real API calls of the site being inspected.
+  const kind = String(params.type ?? '').toLowerCase()
+  if (kind !== 'xhr' && kind !== 'fetch') return false
+  const targetHost = hostOf(params.request?.url)
+  const pageHost = hostOf(pageUrl)
+  if (targetHost === '' || pageHost === '') return true
+  if (targetHost === pageHost) return true
+  if (registrable(targetHost) === registrable(pageHost)) return true
+  // Third-party endpoint: only when it actually speaks JSON. This keeps the
+  // page's own HTML out of the bundle — some extensions and analytics post a
+  // full page dump to their servers, inline tokens included.
+  const mime = String(params.response?.mimeType ?? '').toLowerCase()
+  return mime.includes('json')
+}
+
+chrome.debugger.onEvent.addListener((source, method, params) => {
+  if (source.tabId !== state.attachedTabId) return
+  try {
+    if (method === 'Network.requestWillBeSent') {
+      if (!shouldCapture(params, state.target?.url)) return
+      requests.set(params.requestId, {
+        id: params.requestId,
+        ts: Date.now(),
+        type: String(params.type ?? '').toLowerCase(),
+        method: params.request.method,
+        url: params.request.url,
+        request: {
+          headers: params.request.headers || {},
+          body: params.request.postData ?? null
+        },
+        status: null,
+        mimeType: params.response?.mimeType ?? null,
+        response: { headers: {}, body: null },
+        failed: null
+      })
+      return
+    }
+    if (method === 'Network.responseReceived') {
+      const entry = requests.get(params.requestId)
+      if (!entry) return
+      entry.status = params.response.status
+      entry.mimeType = params.response.mimeType
+      entry.response.headers = params.response.headers || {}
+      return
+    }
+    if (method === 'Network.loadingFinished') {
+      const entry = requests.get(params.requestId)
+      if (!entry) return
+      requests.delete(params.requestId)
+      chrome.debugger
+        .sendCommand(
+          { tabId: source.tabId },
+          'Network.getResponseBody',
+          { requestId: params.requestId }
+        )
+        .then(({ body, base64Encoded }) => {
+          entry.response.body = base64Encoded ? `«base64:${String(body).length} chars»` : String(body ?? '').slice(0, BODY_CAP)
+          if (state.recording) keepEntry(entry)
+        })
+        .catch(() => {
+          entry.response.body = null
+          if (state.recording) keepEntry(entry)
+        })
+      return
+    }
+    if (method === 'Network.loadingFailed') {
+      const entry = requests.get(params.requestId)
+      if (!entry) return
+      entry.failed = params.errorText || 'failed'
+      requests.delete(params.requestId)
+      if (state.recording) keepEntry(entry)
+    }
+  } catch {
+    // never let a capture bug break the debugger session
+  }
+})
+
+async function setRecording(on) {
+  if (on) {
+    if (state.attachedTabId == null) throw new Error('claim a tab before starting capture')
+    state.entries = []
+    state.dirty = []
+    requests.clear()
+    state.recording = true
+  } else {
+    state.recording = false
+  }
+  await evt('netcontrol', { recording: state.recording })
+  return state.recording
+}
+
+/* ------------------------------------------------------------------ cursor */
+
+const CURSOR_ID = '__dsh_site_bridge_cursor__'
+
+function cursorBootstrap() {
+  if (document.getElementById('__dsh_site_bridge_cursor__')) return
+  const host = document.createElement('div')
+  host.id = '__dsh_site_bridge_cursor__'
+  host.style.cssText = [
+    'position:fixed', 'left:0', 'top:0', 'width:0', 'height:0',
+    'z-index:2147483647', 'pointer-events:none', 'transition:transform 160ms cubic-bezier(.2,.7,.3,1)'
+  ].join(';')
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  arrow.setAttribute('width', '20')
+  arrow.setAttribute('height', '20')
+  arrow.setAttribute('viewBox', '0 0 20 20')
+  arrow.style.cssText = 'filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))'
+  arrow.innerHTML =
+    '<path d="M2 1.5 L2 15.5 L6 11.8 L8.6 17.8 L11.2 16.6 L8.6 10.8 L13.6 10.8 Z" fill="#fff" stroke="#111" stroke-width="1.2" stroke-linejoin="round"/>'
+  host.appendChild(arrow)
+  const ripple = document.createElement('div')
+  ripple.id = '__dsh_site_bridge_ripple__'
+  ripple.style.cssText = [
+    'position:fixed', 'left:0', 'top:0', 'width:28px', 'height:28px', 'margin:-14px 0 0 -14px',
+    'border-radius:50%', 'border:2px solid rgba(64,132,255,.95)', 'opacity:0',
+    'transition:opacity 260ms ease-out, transform 260ms ease-out', 'transform:scale(.3)'
+  ].join(';')
+  host.appendChild(ripple)
+  ;(document.documentElement || document.body).appendChild(host)
+}
+
+async function cursorMove(x, y) {
+  await cdp('Runtime.evaluate', {
+    expression: `(() => {
+      const fn = ${cursorBootstrap.toString()};
+      fn();
+      const host = document.getElementById('${CURSOR_ID}');
+      if (host) host.style.transform = 'translate(' + (${x}) + 'px,' + (${y}) + 'px)';
+      return true;
+    })()`,
+    returnByValue: true
+  })
+}
+
+async function cursorRipple(x, y) {
+  await cdp('Runtime.evaluate', {
+    expression: `(() => {
+      const ripple = document.getElementById('__dsh_site_bridge_ripple__');
+      if (!ripple) return false;
+      ripple.style.left = '${x}px';
+      ripple.style.top = '${y}px';
+      ripple.style.opacity = '1';
+      ripple.style.transform = 'scale(1)';
+      setTimeout(() => { ripple.style.opacity = '0'; ripple.style.transform = 'scale(.3)'; }, 220);
+      return true;
+    })()`,
+    returnByValue: true
+  })
+}
+
+/* ------------------------------------------------------------------- input */
+
+/**
+ * Injected into every page evaluation: resolves a selector that may cross
+ * shadow roots and same-origin iframes.
+ *
+ * Syntax: `host >>> inner`, any depth. A plain selector falls back to a search
+ * across same-origin iframes, so most existing selectors keep working.
+ * Returns { el, ox, oy } where ox/oy are the accumulated frame offsets in
+ * top-window coordinates (Input.dispatchMouseEvent works in those).
+ */
+const PAGE_RESOLVER = `
+  const __dshChildRoot = (el) => {
+    if (el.shadowRoot) return el.shadowRoot;
+    if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') {
+      try { return el.contentDocument || null; } catch { return null; }
+    }
+    return null;
+  };
+  const __dshFind = (selector) => {
+    const parts = String(selector).split('>>>').map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 0) return null;
+    let root = document, ox = 0, oy = 0, el = null;
+    for (let i = 0; i < parts.length; i += 1) {
+      el = root.querySelector(parts[i]);
+      if (!el) return null;
+      if (i < parts.length - 1) {
+        const r = el.getBoundingClientRect();
+        ox += r.left; oy += r.top;
+        root = __dshChildRoot(el);
+        if (!root) return null;
+      }
+    }
+    return { el, ox, oy };
+  };
+  const __dshDeep = (selector) => {
+    const hit = __dshFind(selector);
+    if (hit) return hit;
+    for (const frame of document.querySelectorAll('iframe')) {
+      let doc = null;
+      try { doc = frame.contentDocument; } catch { doc = null; }
+      if (!doc) continue;
+      let el = null;
+      try { el = doc.querySelector(selector); } catch { el = null; }
+      if (el) {
+        const r = frame.getBoundingClientRect();
+        return { el, ox: r.left, oy: r.top };
+      }
+    }
+    return null;
+  };
+`
+
+async function elementCenter(selector) {
+  const { result } = await cdp('Runtime.evaluate', {
+    expression: `(() => {
+      ${PAGE_RESOLVER}
+      const hit = __dshDeep(${JSON.stringify(selector)});
+      if (!hit) return null;
+      const el = hit.el;
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) return { x: 0, y: 0, empty: true };
+      return { x: r.left + r.width / 2 + hit.ox, y: r.top + r.height / 2 + hit.oy, w: r.width, h: r.height };
+    })()`,
+    returnByValue: true
+  })
+  if (!result?.value) throw new Error(`element not found: ${selector}`)
+  return result.value
+}
+
+async function mouseClick(x, y, { button = 'left', clickCount = 1 } = {}) {
+  const buttons = button === 'right' ? 2 : button === 'middle' ? 4 : 1
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 })
+  await cdp('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button, buttons, clickCount })
+  await cdp('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button, buttons: 0, clickCount })
+}
+
+async function typeInto(selector, value) {
+  const center = await elementCenter(selector)
+  await mouseClick(center.x, center.y)
+  // select existing content so the insert replaces it, like a human would
+  await cdp('Runtime.evaluate', {
+    expression: `(() => {
+      ${PAGE_RESOLVER}
+      const hit = __dshDeep(${JSON.stringify(selector)});
+      if (!hit) return false;
+      const el = hit.el;
+      if (typeof el.select === 'function') el.select();
+      else if (el.isContentEditable) {
+        const range = el.ownerDocument.createRange();
+        range.selectNodeContents(el);
+        const selection = el.ownerDocument.defaultView.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      return true;
+    })()`,
+    returnByValue: true
+  })
+  await cdp('Input.insertText', { text: String(value) })
+}
+
+/* ------------------------------------------------------------------- steps */
+
+async function runSteps(steps) {
+  if (!Array.isArray(steps) || steps.length === 0) throw new Error('steps must be a non-empty array')
+  const results = []
+  for (const step of steps) {
+    const op = String(step?.op ?? '')
+    try {
+      const detail = await runStep(op, step)
+      results.push({ op, ok: true, ...detail })
+      if (detail?.stop === true) break
+    } catch (error) {
+      results.push({ op, ok: false, error: String(error?.message ?? error) })
+      break
+    }
+  }
+  return { results, ok: results.every((item) => item.ok) }
+}
+
+async function runStep(op, step) {
+  switch (op) {
+    case 'exists': {
+      const center = await cdp('Runtime.evaluate', {
+        expression: `(() => {
+          ${PAGE_RESOLVER}
+          const hit = __dshDeep(${JSON.stringify(step.selector)});
+          if (!hit) return null;
+          const el = hit.el;
+          const r = el.getBoundingClientRect();
+          return { w: r.width, h: r.height, visible: !!(el.offsetParent || r.width || r.height), frame: { ox: hit.ox, oy: hit.oy } };
+        })()`,
+        returnByValue: true
+      })
+      return { exists: Boolean(center.result?.value), box: center.result?.value ?? null }
+    }
+    case 'click': {
+      if (typeof step.x === 'number' && typeof step.y === 'number') {
+        await cursorMove(step.x, step.y)
+        await cursorRipple(step.x, step.y)
+        await mouseClick(step.x, step.y, step)
+        return { clicked: { x: step.x, y: step.y } }
+      }
+      const center = await elementCenter(step.selector)
+      await cursorMove(center.x, center.y)
+      await cursorRipple(center.x, center.y)
+      await mouseClick(center.x, center.y, step)
+      return { clicked: { selector: step.selector, x: Math.round(center.x), y: Math.round(center.y) } }
+    }
+    case 'hover': {
+      const center = await elementCenter(step.selector)
+      await cursorMove(center.x, center.y)
+      await cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: center.x, y: center.y, buttons: 0 })
+      return { hovered: step.selector }
+    }
+    case 'fill': {
+      const { result } = await cdp('Runtime.evaluate', {
+        expression: `(() => {
+          ${PAGE_RESOLVER}
+          const hit = __dshDeep(${JSON.stringify(step.selector)});
+          if (!hit) return { ok: false, error: 'not found' };
+          const el = hit.el;
+          const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype
+            : el instanceof HTMLSelectElement ? HTMLSelectElement.prototype
+            : HTMLInputElement.prototype;
+          const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+          if (desc && desc.set) desc.set.call(el, ${JSON.stringify(String(step.value ?? ''))});
+          else el.value = ${JSON.stringify(String(step.value ?? ''))};
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          return { ok: true, value: el.value };
+        })()`,
+        returnByValue: true
+      })
+      if (!result?.value?.ok) throw new Error(`fill failed for ${step.selector}: ${result?.value?.error ?? 'unknown'}`)
+      return { filled: step.selector, value: result.value.value }
+    }
+    case 'type': {
+      await typeInto(step.selector, step.value ?? '')
+      return { typed: step.selector }
+    }
+    case 'select': {
+      const { result } = await cdp('Runtime.evaluate', {
+        expression: `(() => {
+          ${PAGE_RESOLVER}
+          const hit = __dshDeep(${JSON.stringify(step.selector)});
+          if (!hit) return { ok: false, error: 'not found' };
+          const el = hit.el;
+          const value = ${JSON.stringify(String(step.value ?? ''))};
+          if (el instanceof HTMLSelectElement) {
+            el.value = value;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+            return { ok: true, value: el.value };
+          }
+          el.click();
+          return { ok: true, custom: true };
+        })()`,
+        returnByValue: true
+      })
+      if (!result?.value?.ok) throw new Error(`select failed for ${step.selector}`)
+      return { selected: step.selector, value: result.value.value ?? null }
+    }
+    case 'press': {
+      const key = String(step.key ?? 'Enter')
+      const code = step.code ?? key
+      await cdp('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: vkFor(key) })
+      await cdp('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: vkFor(key) })
+      return { pressed: key }
+    }
+    case 'scroll': {
+      if (step.selector) {
+        await cdp('Runtime.evaluate', {
+          expression: `(() => {
+            ${PAGE_RESOLVER}
+            const hit = __dshDeep(${JSON.stringify(step.selector)});
+            if (!hit) return false;
+            hit.el.scrollIntoView({ block: 'center' });
+            return true;
+          })()`,
+          returnByValue: true
+        })
+        return { scrolledTo: step.selector }
+      }
+      const x = Number(step.x ?? 400)
+      const y = Number(step.y ?? 400)
+      await cdp('Input.dispatchMouseEvent', {
+        type: 'mouseWheel', x, y, deltaX: Number(step.dx ?? 0), deltaY: Number(step.dy ?? 600)
+      })
+      return { scrolled: { dx: Number(step.dx ?? 0), dy: Number(step.dy ?? 600) } }
+    }
+    case 'upload': {
+      const files = Array.isArray(step.files) ? step.files : []
+      if (files.length === 0) throw new Error('upload needs files: absolute paths on the DSH host')
+      const { result } = await cdp('Runtime.evaluate', {
+        expression: `(() => {
+          ${PAGE_RESOLVER}
+          const hit = __dshDeep(${JSON.stringify(step.selector)});
+          return hit ? hit.el : null;
+        })()`,
+        returnByValue: false
+      })
+      if (!result?.objectId) throw new Error(`upload target not found: ${step.selector}`)
+      try {
+        await cdp('DOM.setFileInputFiles', { files, objectId: result.objectId })
+      } finally {
+        await cdp('Runtime.releaseObject', { objectId: result.objectId }).catch(() => {})
+      }
+      return { uploaded: files.length, to: step.selector }
+    }
+    case 'goto': {
+      await cdp('Page.navigate', { url: String(step.url) })
+      return { navigated: step.url }
+    }
+    case 'reload': {
+      await cdp('Page.reload', { ignoreCache: step.hard === true })
+      return { reloaded: true }
+    }
+    case 'wait': {
+      if (step.ms) {
+        await sleep(Math.min(Number(step.ms), 60000))
+        return { waitedMs: Number(step.ms) }
+      }
+      const deadline = Date.now() + Math.min(Number(step.timeoutMs ?? 15000), 60000)
+      while (Date.now() < deadline) {
+        const { result } = await cdp('Runtime.evaluate', {
+          expression: `(() => {
+            ${PAGE_RESOLVER}
+            return Boolean(__dshDeep(${JSON.stringify(step.selector)}));
+          })()`,
+          returnByValue: true
+        })
+        if (result?.value === true) return { appeared: step.selector }
+        await sleep(200)
+      }
+      throw new Error(`timed out waiting for ${step.selector}`)
+    }
+    case 'eval': {
+      const { result, exceptionDetails } = await cdp('Runtime.evaluate', {
+        expression: String(step.expression ?? ''),
+        awaitPromise: true,
+        returnByValue: true,
+        userGesture: true
+      })
+      if (exceptionDetails) throw new Error(exceptionDetails.text ?? 'evaluation failed')
+      return { value: result?.value ?? null }
+    }
+    case 'screenshot': {
+      const shot = await cdp('Page.captureScreenshot', {
+        format: 'png',
+        captureBeyondViewport: step.fullPage === true
+      })
+      return { png: shot.data }
+    }
+    default:
+      throw new Error(`unknown step op: ${op}`)
+  }
+}
+
+function vkFor(key) {
+  const table = { Enter: 13, Tab: 9, Escape: 27, Backspace: 8, ArrowUp: 38, ArrowDown: 40, ArrowLeft: 37, ArrowRight: 39 }
+  return table[key] ?? (key.length === 1 ? key.toUpperCase().charCodeAt(0) : 0)
+}
+
+/* ---------------------------------------------------------------- snapshot */
+
+function snapshotInPage(options) {
+  const maxNodes = options.maxNodes || 4000
+  const scopeSelector = options.selector || null
+
+  const nodes = []
+  const styles = {}
+  const counts = { shadowRoots: 0, frames: 0, crossOriginFrames: 0 }
+
+  // Resolve the scope through the same `host >>> inner` syntax the tools use.
+  const deepRoot = (el) => {
+    if (el.shadowRoot) return el.shadowRoot
+    if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') {
+      try { return el.contentDocument || null } catch { return null }
+    }
+    return null
+  }
+  const resolveScope = (selector) => {
+    const parts = String(selector).split('>>>').map((s) => s.trim()).filter(Boolean)
+    let scope = document
+    let el = null
+    for (let i = 0; i < parts.length; i += 1) {
+      el = scope.querySelector(parts[i])
+      if (!el) return null
+      if (i < parts.length - 1) {
+        scope = deepRoot(el)
+        if (!scope) return null
+      }
+    }
+    return el
+  }
+
+  const root = scopeSelector ? resolveScope(scopeSelector) : document.body
+  if (!root) return { error: `selector not found: ${scopeSelector}` }
+  const scopeDoc = root.ownerDocument || document
+  const all = scopeDoc.querySelectorAll('*')
+  const styleProps = [
+    'display', 'position', 'color', 'background-color', 'background-image', 'font-family', 'font-size',
+    'font-weight', 'line-height', 'letter-spacing', 'border-top-width', 'border-color', 'border-radius',
+    'box-shadow', 'padding-top', 'padding-left', 'margin-top', 'margin-left', 'gap', 'row-gap',
+    'column-gap', 'justify-content', 'align-items', 'flex-direction', 'grid-template-columns', 'opacity',
+    'z-index', 'text-transform', 'width', 'height'
+  ]
+  const attrNames = ['data-testid', 'data-test', 'data-qa', 'data-cy', 'data-id', 'data-action', 'name', 'type', 'href', 'placeholder', 'title', 'alt', 'value']
+
+  const seenIds = new Map()
+
+  function escape(value) {
+    return String(value).replace(/["\\]/g, '\\$&')
+  }
+
+  function unique(scope, selector) {
+    try {
+      return scope.querySelectorAll(selector).length
+    } catch {
+      return -1
+    }
+  }
+
+  function pathFor(el, scope) {
+    const parts = []
+    let current = el
+    let guard = 0
+    while (current && current.nodeType === 1 && guard < 12) {
+      let part = current.tagName.toLowerCase()
+      if (current.id) {
+        parts.unshift(`#${escape(current.id)}`)
+        break
+      }
+      const parent = current.parentElement
+      if (parent) {
+        const siblings = [...parent.children].filter((node) => node.tagName === current.tagName)
+        if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(current) + 1})`
+        parts.unshift(part)
+        current = parent
+      } else {
+        parts.unshift(part)
+        break
+      }
+      guard += 1
+    }
+    return parts.join(' > ')
+  }
+
+  // Everything is resolved inside `scope` (document or shadow root), and the
+  // result is prefixed with the chain that reaches that scope.
+  function candidates(el, scope, prefix) {
+    const list = []
+    if (el.id) list.push(`#${escape(el.id)}`)
+    for (const attr of ['data-testid', 'data-test', 'data-qa', 'data-cy']) {
+      const value = el.getAttribute(attr)
+      if (value) list.push(`[${attr}="${escape(value)}"]`)
+    }
+    if (el.getAttribute('name')) list.push(`${el.tagName.toLowerCase()}[name="${escape(el.getAttribute('name'))}"]`)
+    if (el.getAttribute('aria-label')) list.push(`[aria-label="${escape(el.getAttribute('aria-label'))}"]`)
+    if (el.getAttribute('role')) list.push(`${el.tagName.toLowerCase()}[role="${escape(el.getAttribute('role'))}"]`)
+    const classes = [...el.classList].filter((name) => /^[a-zA-Z][\w-]{2,}$/.test(name)).slice(0, 2)
+    if (classes.length > 0) list.push(el.tagName.toLowerCase() + classes.map((name) => `.${escape(name)}`).join(''))
+    list.push(pathFor(el, scope))
+    const checked = [...new Set(list)]
+      .map((selector) => ({ selector: prefix + selector, matches: unique(scope, selector) }))
+      .filter((item) => item.matches > 0)
+    const best = checked.find((item) => item.matches === 1) ?? checked[0] ?? { selector: prefix, matches: 0 }
+    return { best: best.selector, unique: best.matches === 1, candidates: checked.slice(0, 6) }
+  }
+
+  function textOf(el) {
+    if (el.children.length > 0) return ''
+    return (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+  }
+
+  function visit(el, parentIndex, depth, scope, prefix) {
+    if (nodes.length >= maxNodes) return
+    if (depth > (options.maxDepth ?? 30) || depth > 40) return
+    const index = nodes.length
+    const rect = el.getBoundingClientRect()
+    const view = (el.ownerDocument && el.ownerDocument.defaultView) || window
+    const style = view.getComputedStyle(el)
+    const visible = style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && (rect.width > 0 || rect.height > 0)
+    const attrs = {}
+    for (const name of attrNames) {
+      const value = el.getAttribute(name)
+      if (value !== null) attrs[name] = value.slice(0, 200)
+    }
+    const node = {
+      i: index,
+      p: parentIndex,
+      tag: el.tagName.toLowerCase(),
+      id: el.id || '',
+      cls: [...el.classList].slice(0, 4),
+      role: el.getAttribute('role') || '',
+      name: el.getAttribute('aria-label') || el.getAttribute('alt') || el.getAttribute('title') || '',
+      text: textOf(el),
+      attrs,
+      rect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
+      vis: visible,
+      d: depth,
+      frame: prefix === '' ? null : prefix.replace(/ >>> $/, ''),
+      sel: candidates(el, scope, prefix)
+    }
+    nodes.push(node)
+
+    const interesting =
+      visible &&
+      (node.id !== '' ||
+        Object.keys(attrs).length > 0 ||
+        ['button', 'a', 'input', 'select', 'textarea', 'label', 'h1', 'h2', 'h3', 'nav', 'header', 'footer', 'form', 'table'].includes(node.tag) ||
+        ['button', 'link', 'tab', 'menuitem', 'textbox', 'checkbox', 'combobox'].includes(node.role))
+    if (interesting && Object.keys(styles).length < 250) {
+      const snapshot = {}
+      for (const prop of styleProps) snapshot[prop] = style.getPropertyValue(prop)
+      styles[index] = snapshot
+    }
+
+    for (const child of el.children) {
+      visit(child, index, depth + 1, scope, prefix)
+    }
+
+    if (el.shadowRoot) {
+      counts.shadowRoots += 1
+      const hostSelector = candidates(el, scope, prefix).best
+      for (const child of el.shadowRoot.children) {
+        visit(child, index, depth + 1, el.shadowRoot, hostSelector + ' >>> ')
+      }
+    }
+
+    if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') {
+      let frameDoc = null
+      try {
+        frameDoc = el.contentDocument
+      } catch {
+        frameDoc = null
+      }
+      if (frameDoc && frameDoc.body) {
+        counts.frames += 1
+        const frameSelector = candidates(el, scope, prefix).best
+        for (const child of frameDoc.body.children) {
+          visit(child, index, depth + 1, frameDoc, frameSelector + ' >>> ')
+        }
+      } else {
+        counts.crossOriginFrames += 1
+      }
+    }
+  }
+
+  visit(root, -1, 0, scopeDoc, '')
+
+  const cssVars = {}
+  try {
+    for (const sheet of document.styleSheets) {
+      let rules
+      try {
+        rules = sheet.cssRules
+      } catch {
+        continue
+      }
+      for (const rule of rules || []) {
+        if (!rule.style) continue
+        const selector = rule.selectorText || ''
+        if (!/:root|^html\b/.test(selector)) continue
+        for (const prop of rule.style) {
+          if (!prop.startsWith('--')) continue
+          const value = rule.style.getPropertyValue(prop).trim()
+          if (value && !cssVars[prop]) cssVars[prop] = value.slice(0, 200)
+        }
+        if (Object.keys(cssVars).length > 300) break
+      }
+    }
+  } catch {
+    // cross-origin stylesheets are not readable; :root vars from inline styles still are
+  }
+
+  const frameworks = []
+  try {
+    if (window.__NEXT_DATA__) frameworks.push('next')
+    if (window.__NUXT__) frameworks.push('nuxt')
+    if (window.__remixContext) frameworks.push('remix')
+    if (window.__sveltekit) frameworks.push('sveltekit')
+    if (document.querySelector('[ng-version]')) frameworks.push('angular')
+    if (window.Vue || document.querySelector('[data-v-app]')) frameworks.push('vue')
+    if (document.querySelector('[data-reactroot], #__next, #root')) frameworks.push('react-ish')
+  } catch {
+    // ignore
+  }
+
+  const html = root.outerHTML || ''
+  return {
+    url: location.href,
+    title: document.title,
+    lang: document.documentElement.lang || '',
+    viewport: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio },
+    scroll: { x: window.scrollX, y: window.scrollY, w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight },
+    ua: navigator.userAgent,
+    frameworks,
+    counts,
+    cssVars,
+    styles,
+    nodes,
+    html: html.length > 3000000 ? html.slice(0, 3000000) : html,
+    htmlTruncated: html.length > 3000000,
+    totalElements: all.length
+  }
+}
+
+/* ----------------------------------------------------------------- dispatch */
+
+async function handle(op, args) {
+  switch (op) {
+    case 'ping':
+      return { ok: true, version: EXT_VERSION }
+    case 'tabs.list': {
+      const tabs = await chrome.tabs.query({})
+      const list = tabs
+        .filter((tab) => /^https?:|^file:/.test(tab.url ?? ''))
+        .map((tab) => ({ id: tab.id, title: tab.title, url: tab.url, active: tab.active, windowId: tab.windowId, target: tab.id === state.attachedTabId }))
+      await evt('tabs', { tabs: list })
+      return { tabs: list }
+    }
+    case 'tab.claim':
+      return { target: await claimTab(Number(args.tabId)) }
+    case 'tab.info':
+      return { target: state.target, attached: state.attachedTabId }
+    case 'net.start':
+      return { recording: await setRecording(true) }
+    case 'net.stop':
+      return { recording: await setRecording(false), captured: state.entries.length }
+    case 'net.clear':
+      state.entries = []
+      state.dirty = []
+      await evt('netclear', {})
+      return { captured: 0 }
+    case 'net.list': {
+      const query = String(args.query ?? '').toLowerCase()
+      const limit = Math.min(Number(args.limit ?? 50), 200)
+      const items = state.entries
+        .filter((entry) => (query === '' ? true : `${entry.method} ${entry.url}`.toLowerCase().includes(query)))
+        .slice(-limit)
+        .map((entry) => ({
+          id: entry.id,
+          method: entry.method,
+          url: entry.url,
+          status: entry.status,
+          type: entry.type,
+          mimeType: entry.mimeType,
+          failed: entry.failed,
+          hasBody: Boolean(entry.response?.body)
+        }))
+      return { captured: state.entries.length, items }
+    }
+    case 'net.get': {
+      const entry = state.entries.find((item) => String(item.id) === String(args.id))
+      if (!entry) throw new Error(`no captured request ${args.id}`)
+      return { entry }
+    }
+    case 'dom.snapshot': {
+      const { result, exceptionDetails } = await cdp('Runtime.evaluate', {
+        expression: `(${snapshotInPage.toString()})(${JSON.stringify({
+          selector: args.selector ?? null,
+          maxNodes: args.maxNodes ?? 4000,
+          maxDepth: args.maxDepth ?? 30
+        })})`,
+        returnByValue: true,
+        awaitPromise: true
+      })
+      if (exceptionDetails) throw new Error(exceptionDetails.text ?? 'snapshot failed')
+      if (!result?.value) throw new Error('snapshot returned no value')
+      return result.value
+    }
+    case 'act':
+      return runSteps(args.steps)
+    case 'cursor': {
+      const x = Number(args.x)
+      const y = Number(args.y)
+      if (!Number.isFinite(x) || !Number.isFinite(y)) throw new Error('cursor needs numeric x and y')
+      await cursorMove(x, y)
+      if (args.click === true) {
+        await sleep(180)
+        await cursorRipple(x, y)
+        await mouseClick(x, y, { button: args.button ?? 'left', clickCount: args.clickCount ?? 1 })
+      }
+      return { x, y, clicked: args.click === true }
+    }
+    case 'eval': {
+      const { result, exceptionDetails } = await cdp('Runtime.evaluate', {
+        expression: String(args.expression ?? ''),
+        awaitPromise: true,
+        returnByValue: true,
+        userGesture: true
+      })
+      if (exceptionDetails) throw new Error(exceptionDetails.exception?.description ?? exceptionDetails.text ?? 'evaluation failed')
+      return { value: result?.value ?? null }
+    }
+    case 'inject': {
+      if (args.css) {
+        await cdp('Runtime.evaluate', {
+          expression: `(() => {
+            const id = 'dsh-injected-style';
+            let el = document.getElementById(id);
+            if (!el) { el = document.createElement('style'); el.id = id; (document.head || document.documentElement).appendChild(el); }
+            el.textContent = ${JSON.stringify(String(args.css))};
+            return true;
+          })()`,
+          returnByValue: true
+        })
+      }
+      let value = null
+      if (args.js) {
+        const { result, exceptionDetails } = await cdp('Runtime.evaluate', {
+          expression: `(async () => { ${String(args.js)} })()`,
+          awaitPromise: true,
+          returnByValue: true,
+          userGesture: true
+        })
+        if (exceptionDetails) throw new Error(exceptionDetails.exception?.description ?? exceptionDetails.text ?? 'injected script threw')
+        value = result?.value ?? null
+      }
+      return { injected: true, value }
+    }
+    case 'shot': {
+      const shot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: args.fullPage === true })
+      return { png: shot.data, fullPage: args.fullPage === true }
+    }
+    default:
+      throw new Error(`unknown op: ${op}`)
+  }
+}
+
+void ensureLoop()
+
+// Reachable only from inside this worker's context (CDP during development,
+// or a future options page). It exposes nothing the extension could not
+// already do, and no page can reach it.
+globalThis.__dshSiteBridge = { state, claimTab, attach, detach, handle, setRecording, EXT_VERSION }

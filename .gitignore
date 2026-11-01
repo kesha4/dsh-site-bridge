@@ -1,0 +1,9 @@
+node_modules/
+.test-out/
+.logs/
+.e2e-profile/
+.e2e-captures/
+.probe-profile/
+.e2e-upload.txt
+captures/
+*.log

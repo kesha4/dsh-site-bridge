@@ -1,0 +1,56 @@
+{
+  "appName": { "message": "DSH Site Bridge" },
+  "appDesc": {
+    "message": "Глаза и руки DeepSeek Harness в вашем браузере: разметка страницы, трафик BFF, доверенный ввод и виртуальный курсор. Авторизация остаётся в браузере."
+  },
+  "tagline": { "message": "DeepSeek Harness в вашем браузере" },
+
+  "statusConnecting": { "message": "Проверяю…" },
+  "statusConnected": { "message": "Мост подключён" },
+  "statusNoBridge": { "message": "Мост не отвечает" },
+  "statusNotConfigured": { "message": "Не настроен" },
+  "statusWorkerDown": { "message": "Служба расширения не отвечает" },
+
+  "disconnect": { "message": "Отключить" },
+  "targetNoneTitle": { "message": "Вкладка не подключена" },
+  "targetNoneUrl": { "message": "Откройте нужную страницу и подключите её" },
+  "connectTab": { "message": "Подключить эту вкладку" },
+  "tabConnected": { "message": "Вкладка подключена" },
+
+  "connectionTitle": { "message": "Подключение" },
+  "importBridge": { "message": "Импорт bridge.json" },
+  "portLabel": { "message": "Порт моста" },
+  "tokenLabel": { "message": "Токен" },
+  "tokenPlaceholder": { "message": "вставьте токен или импортируйте файл" },
+  "tokenLength": {
+    "message": "$COUNT$ символов",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "hintAutosave": { "message": "Сохраняется само, без кнопок. Файл с токеном:" },
+  "hintFile": { "message": "~/.dsh/site-bridge/bridge.json" },
+
+  "captureTitle": { "message": "Запись API" },
+  "records": {
+    "message": "$COUNT$ записей",
+    "placeholders": { "count": { "content": "$1" } }
+  },
+  "captureStart": { "message": "Включить запись" },
+  "captureStop": { "message": "Остановить запись" },
+  "captureHint": {
+    "message": "Пишутся только xhr/fetch этого сайта. Значения cookie, CSRF и токенов заменяются на «redacted» ещё до записи на диск."
+  },
+  "bannerHint": {
+    "message": "Chrome покажет плашку «началась отладка» — это ожидаемо: через неё работает ввод и чтение сети."
+  },
+
+  "imported": { "message": "Настройки импортированы" },
+  "importFailed": {
+    "message": "Импорт не удался: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "claimFailed": {
+    "message": "Не удалось подключить: $ERROR$",
+    "placeholders": { "error": { "content": "$1" } }
+  },
+  "claimFailedUnknown": { "message": "неизвестная ошибка" }
+}

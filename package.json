@@ -1,0 +1,49 @@
+{
+  "name": "dsh-site-bridge",
+  "version": "0.1.0",
+  "description": "Chrome/Edge MV3 bridge for DeepSeek Harness: capture page markup (DOM, styles, selectors) and BFF traffic (xhr/fetch with headers and bodies) into a workspace snapshot bundle, drive the page with trusted CDP input, and verify injected scripts. Authorization never leaves the browser and is never written to disk.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "extension",
+    "docs",
+    "scripts",
+    "tools",
+    "cordis.patch.yml"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "browser",
+    "chrome-extension",
+    "cdp",
+    "dom",
+    "network-capture"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node test/redact.test.mjs && node test/bridge.test.mjs && node test/artifacts.test.mjs && node test/plugin.test.mjs",
+    "test:e2e": "node test/e2e.mjs",
+    "test:tools": "node test/tools-chrome.mjs",
+    "icons": "node tools/make-icons.mjs",
+    "stage": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1 -StageOnly"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.0"
+  }
+}
