@@ -31,13 +31,13 @@
 
   "captureTitle": { "message": "API 录制" },
   "records": {
-    "message": "$COUNT$ 条记录",
+    "message": "$COUNT$ 条请求",
     "placeholders": { "count": { "content": "$1" } }
   },
   "captureStart": { "message": "开始录制" },
   "captureStop": { "message": "停止录制" },
-  "captureShortOn": { "message": "录制：开" },
-  "captureShortOff": { "message": "录制：关" },
+  "captureShortOn": { "message": "接口录制：开" },
+  "captureShortOff": { "message": "接口录制：关" },
   "bannerHintShort": {
     "message": "Chrome 的「已开始调试」提示条是正常的：输入与网络抓取都通过它进行。"
   },

@@ -31,13 +31,13 @@
 
   "captureTitle": { "message": "Запись API" },
   "records": {
-    "message": "$COUNT$ записей",
+    "message": "$COUNT$ запросов",
     "placeholders": { "count": { "content": "$1" } }
   },
   "captureStart": { "message": "Включить запись" },
   "captureStop": { "message": "Остановить запись" },
-  "captureShortOn": { "message": "Запись: вкл" },
-  "captureShortOff": { "message": "Запись: выкл" },
+  "captureShortOn": { "message": "Запись API: вкл" },
+  "captureShortOff": { "message": "Запись API: выкл" },
   "bannerHintShort": {
     "message": "Плашка «началась отладка» в Chrome — ожидаема: через неё идёт ввод и чтение сети."
   },

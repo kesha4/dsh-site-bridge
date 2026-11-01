@@ -31,13 +31,13 @@
 
   "captureTitle": { "message": "API recording" },
   "records": {
-    "message": "$COUNT$ entries",
+    "message": "$COUNT$ requests",
     "placeholders": { "count": { "content": "$1" } }
   },
   "captureStart": { "message": "Start recording" },
   "captureStop": { "message": "Stop recording" },
-  "captureShortOn": { "message": "Recording: on" },
-  "captureShortOff": { "message": "Recording: off" },
+  "captureShortOn": { "message": "API capture: on" },
+  "captureShortOff": { "message": "API capture: off" },
   "bannerHintShort": {
     "message": "The “started debugging” banner in Chrome is expected: input and network capture run over it."
   },
