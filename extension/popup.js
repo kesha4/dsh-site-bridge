@@ -28,6 +28,7 @@ function applyLocale() {
 }
 
 let noteTimer = null
+let pairingInitialized = false
 
 function setNote(text, isError = false) {
   const note = $('status-note')
@@ -85,8 +86,16 @@ function render(status) {
   release.hidden = !hasTarget
 
   capture.disabled = !connected
-  capture.textContent = status.recording ? t('captureStop') : t('captureStart')
+  capture.textContent = status.recording ? t('captureShortOn') : t('captureShortOff')
   $('captured').textContent = t('records', [String(status.captured || 0)])
+  $('endpoint').textContent = `127.0.0.1:${status.port || 47321}`
+
+  // Pairing is advanced once it works: open it only when it is not configured
+  // yet, and never fight the user's own toggle afterwards.
+  if (!pairingInitialized) {
+    $('pairing').open = !configured
+    pairingInitialized = true
+  }
 
   if (configured && !connected && status.lastError) {
     setNote(String(status.lastError), true)

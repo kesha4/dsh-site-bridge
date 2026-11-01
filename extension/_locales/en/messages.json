@@ -36,6 +36,11 @@
   },
   "captureStart": { "message": "Start recording" },
   "captureStop": { "message": "Stop recording" },
+  "captureShortOn": { "message": "Recording: on" },
+  "captureShortOff": { "message": "Recording: off" },
+  "bannerHintShort": {
+    "message": "The “started debugging” banner in Chrome is expected: input and network capture run over it."
+  },
   "captureHint": {
     "message": "Only this site's xhr/fetch is recorded. Cookie, CSRF and token values become «redacted» before anything is written to disk."
   },

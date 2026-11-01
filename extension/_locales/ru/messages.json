@@ -36,6 +36,11 @@
   },
   "captureStart": { "message": "Включить запись" },
   "captureStop": { "message": "Остановить запись" },
+  "captureShortOn": { "message": "Запись: вкл" },
+  "captureShortOff": { "message": "Запись: выкл" },
+  "bannerHintShort": {
+    "message": "Плашка «началась отладка» в Chrome — ожидаема: через неё идёт ввод и чтение сети."
+  },
   "captureHint": {
     "message": "Пишутся только xhr/fetch этого сайта. Значения cookie, CSRF и токенов заменяются на «redacted» ещё до записи на диск."
   },

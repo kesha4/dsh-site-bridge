@@ -16,52 +16,47 @@
         --ok: #35c88f;
         --warn: #f0a04d;
         --err: #ef6b6b;
-        --radius: 10px;
       }
       * { box-sizing: border-box; }
       html { overflow-x: hidden; }
       body {
         margin: 0;
         width: 340px;
-        padding: 14px;
+        padding: 12px;
         background: var(--bg);
         color: var(--text);
-        font: 13px/1.45 "Segoe UI", system-ui, sans-serif;
+        font: 13px/1.4 "Segoe UI", system-ui, sans-serif;
       }
 
-      header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-      header img { width: 34px; height: 34px; border-radius: 9px; flex: none; }
-      h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.01em; }
-      .tagline { margin: 1px 0 0; color: var(--muted); font-size: 11px; }
+      header { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+      header img { width: 30px; height: 30px; border-radius: 8px; flex: none; }
+      h1 { margin: 0; font-size: 13.5px; font-weight: 600; }
+      .tagline { margin: 0; color: var(--muted); font-size: 10.5px; }
 
       .card {
         background: var(--card);
         border: 1px solid var(--line);
-        border-radius: var(--radius);
-        padding: 10px;
-        margin-bottom: 10px;
+        border-radius: 10px;
+        padding: 9px;
+        margin-bottom: 8px;
       }
       .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-      h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      h2 { margin: 0; font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 
-      .pill {
-        display: inline-flex; align-items: center; gap: 6px;
-        font-size: 12px; font-weight: 500;
-      }
+      .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
       .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
       .dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(53, 200, 143, 0.15); }
       .dot.warn { background: var(--warn); }
       .dot.err { background: var(--err); }
 
-      .target { margin: 10px 0; padding: 8px 9px; background: #15181e; border: 1px solid var(--line); border-radius: 8px; }
+      .target { margin: 8px 0; padding: 7px 8px; background: #15181e; border: 1px solid var(--line); border-radius: 7px; }
       .target-title { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .target-url { margin-top: 2px; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .target-url { margin-top: 1px; color: var(--muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .target.empty .target-title { color: var(--muted); font-weight: 400; }
 
       button {
-        width: 100%;
-        padding: 8px 10px;
-        border-radius: 8px;
+        padding: 7px 10px;
+        border-radius: 7px;
         border: 1px solid var(--line);
         background: #20242d;
         color: var(--text);
@@ -71,19 +66,33 @@
       }
       button:hover:not(:disabled) { border-color: #3a4150; background: #242935; }
       button:disabled { opacity: 0.45; cursor: default; }
-      button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+      button.primary { width: 100%; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
       button.primary:hover:not(:disabled) { background: #6b8aff; border-color: #6b8aff; }
       button.primary:disabled { background: #20242d; border-color: var(--line); color: var(--muted); font-weight: 500; }
-      button.ghost { width: auto; padding: 3px 8px; font-size: 11px; background: transparent; color: var(--muted); }
+      button.ghost { padding: 3px 8px; font-size: 11px; background: transparent; color: var(--muted); }
       button.ghost:hover:not(:disabled) { color: var(--text); }
       button.link {
-        width: auto; padding: 0; border: none; background: none;
-        color: var(--accent); font-size: 11px; text-decoration: underline; text-underline-offset: 2px;
+        padding: 0; border: none; background: none; color: var(--accent);
+        font-size: 11px; text-decoration: underline; text-underline-offset: 2px;
       }
       button.link:hover:not(:disabled) { color: #7e98ff; background: none; }
 
-      label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 11px; }
-      label .row-label { display: flex; justify-content: space-between; align-items: baseline; }
+      .capture-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+      .capture-row button { padding: 5px 9px; font-size: 11.5px; }
+
+      details.card { padding: 0; }
+      summary {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        padding: 9px; cursor: pointer; list-style: none; font-size: 10.5px;
+        font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em;
+      }
+      summary::-webkit-details-marker { display: none; }
+      summary::after { content: "▾"; font-size: 10px; opacity: 0.7; }
+      details[open] summary::after { content: "▴"; }
+      .details-body { padding: 0 9px 9px; }
+
+      label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 11px; }
+      .row-label { display: flex; justify-content: space-between; align-items: baseline; }
       input {
         width: 100%; margin-top: 3px; padding: 6px 8px;
         background: #15181e; color: var(--text);
@@ -92,16 +101,16 @@
       input:focus { outline: none; border-color: var(--accent); }
       input[type="password"] { letter-spacing: 0.12em; }
 
-      .hint { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
-      .hint code { background: #10131a; padding: 1px 4px; border-radius: 4px; font-size: 10.5px; word-break: break-all; }
+      .hint { margin: 7px 0 0; color: var(--muted); font-size: 10.5px; }
+      .hint code { background: #10131a; padding: 1px 4px; border-radius: 4px; font-size: 10px; }
       .muted { color: var(--muted); font-size: 11px; }
-      .status-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); }
+      .status-note { margin: 7px 0 0; font-size: 11px; color: var(--muted); }
       .status-note.err { color: var(--err); }
     </style>
   </head>
   <body>
     <header>
-      <img src="icons/icon-128.png" alt="" width="34" height="34" />
+      <img src="icons/icon-128.png" alt="" width="30" height="30" />
       <div>
         <h1 data-i18n="appName">DSH Site Bridge</h1>
         <p class="tagline" data-i18n="tagline">DeepSeek Harness в вашем браузере</p>
@@ -121,45 +130,36 @@
 
       <button class="primary" id="claim" data-i18n="connectTab">Подключить эту вкладку</button>
       <p class="status-note" id="status-note" hidden></p>
-    </section>
 
-    <section class="card">
-      <div class="card-head" style="margin-bottom: 8px">
-        <h2 style="margin: 0" data-i18n="connectionTitle">Подключение</h2>
-        <button class="link" id="import" data-i18n="importBridge">Импорт bridge.json</button>
-      </div>
-
-      <label for="port">
-        <span class="row-label"><span data-i18n="portLabel">Порт моста</span></span>
-        <input id="port" type="number" min="1024" max="65535" placeholder="47321" />
-      </label>
-
-      <label for="token">
-        <span class="row-label"><span data-i18n="tokenLabel">Токен</span><span id="token-len" class="muted"></span></span>
-        <input id="token" type="password" data-i18n-placeholder="tokenPlaceholder" placeholder="вставьте токен или импортируйте файл" spellcheck="false" autocomplete="off" />
-      </label>
-
-      <p class="hint">
-        <span data-i18n="hintAutosave">Сохраняется само, без кнопок. Файл с токеном:</span>
-        <code data-i18n="hintFile">~/.dsh/site-bridge/bridge.json</code>
-      </p>
-      <input id="import-file" type="file" accept=".json,application/json" hidden />
-    </section>
-
-    <section class="card">
-      <div class="card-head" style="margin-bottom: 8px">
-        <h2 style="margin: 0" data-i18n="captureTitle">Запись API</h2>
+      <div class="capture-row">
         <span class="muted" id="captured">0</span>
+        <button id="capture" data-i18n="captureShortOff">Запись: выкл</button>
       </div>
-      <button id="capture" data-i18n="captureStart">Включить запись</button>
-      <p class="hint" data-i18n="captureHint">
-        Пишутся только <code>xhr</code>/<code>fetch</code> этого сайта. Значения cookie, CSRF и токенов
-        заменяются на «redacted» ещё до записи на диск.
-      </p>
     </section>
 
-    <p class="hint" style="margin: 2px 2px 0" data-i18n="bannerHint">
-      Chrome покажет плашку «началась отладка» — это ожидаемо: через неё работает ввод и чтение сети.
+    <details class="card" id="pairing">
+      <summary><span data-i18n="connectionTitle">Подключение</span><span class="muted" id="endpoint"></span></summary>
+      <div class="details-body">
+        <label for="port">
+          <span class="row-label"><span data-i18n="portLabel">Порт моста</span></span>
+          <input id="port" type="number" min="1024" max="65535" placeholder="47321" />
+        </label>
+
+        <label for="token">
+          <span class="row-label"><span data-i18n="tokenLabel">Токен</span><span id="token-len" class="muted"></span></span>
+          <input id="token" type="password" data-i18n-placeholder="tokenPlaceholder" placeholder="вставьте токен или импортируйте файл" spellcheck="false" autocomplete="off" />
+        </label>
+
+        <div class="row-label">
+          <button class="link" id="import" data-i18n="importBridge">Импорт bridge.json</button>
+          <span class="muted" data-i18n="hintFile">~/.dsh/site-bridge/bridge.json</span>
+        </div>
+        <input id="import-file" type="file" accept=".json,application/json" hidden />
+      </div>
+    </details>
+
+    <p class="hint" data-i18n="bannerHintShort">
+      Плашка «началась отладка» в Chrome — ожидаема: через неё идёт ввод и чтение сети.
     </p>
 
     <script src="popup.js" type="module"></script>
