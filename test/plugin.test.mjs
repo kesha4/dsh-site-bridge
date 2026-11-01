@@ -107,6 +107,7 @@ function startFakeExtension(port, token, state) {
     })
 
   const handle = async (op, args) => {
+    if (op === 'act') state.lastAct = args
     if (op === 'tab.claim') return { target: state.target }
     if (op === 'tabs.list') return { tabs: [{ id: 1, title: 'Корзина', url: state.target.url, target: true }] }
     if (op === 'dom.snapshot') return snapshotFixture
@@ -181,9 +182,8 @@ test('host half registers every tool and drives the bridge', async (t) => {
   assert.equal(offline.ok, true)
   assert.equal(offline.connected, false)
 
-  const fake = startFakeExtension(creds.port, creds.token, {
-    target: { id: 1, url: 'https://shop.test/cart', title: 'Корзина' }
-  })
+  const fakeState = { target: { id: 1, url: 'https://shop.test/cart', title: 'Корзина' } }
+  const fake = startFakeExtension(creds.port, creds.token, fakeState)
   t.after(() => fake.stop())
 
   const post = (payload) =>
@@ -233,6 +233,19 @@ test('host half registers every tool and drives the bridge', async (t) => {
   )
   assert.equal(act.ok, true)
   assert.match(act.summary, /click/)
+
+  // multi-tab: a pinned tab reaches the worker and stays scoped to that tab
+  await post({ kind: 'target', tab: { id: 2, url: 'https://shop.test/second', title: 'Вторая' } })
+  await waitFor('second target', async () => {
+    const state = await tools.get('site_status').execute({}, {})
+    return (state.targets ?? []).length >= 2 ? state : null
+  })
+  const scoped = await tools.get('site_act').execute(
+    { steps: JSON.stringify([{ op: 'exists', selector: '#buy' }]), tab: 2 },
+    {}
+  )
+  assert.equal(scoped.ok, true, scoped.summary)
+  assert.equal(fakeState.lastAct?.tabId, 2, `worker must receive tabId=2, got ${JSON.stringify(fakeState.lastAct)}`)
 
   const cursor = await tools.get('site_cursor').execute({ x: 100, y: 200, click: true }, {})
   assert.match(cursor.summary, /кликнул/)
