@@ -43,6 +43,14 @@ function setNote(text, isError = false) {
   if (!isError) noteTimer = setTimeout(() => { note.hidden = true }, 2500)
 }
 
+/** Turns transport errors into something a person can act on. */
+function explain(error) {
+  const text = String(error ?? '')
+  if (/401|unauthorized/i.test(text)) return t('errorToken')
+  if (/Failed to fetch|NetworkError|ECONNREFUSED|Load failed/i.test(text)) return t('errorNoBridge')
+  return text
+}
+
 function render(status) {
   const dot = $('dot')
   const text = $('connection-text')
@@ -63,13 +71,19 @@ function render(status) {
   const configured = status.configured === true
   const hasTarget = Boolean(status.target)
 
+  // While the bridge is being looked for, a spinner plus an attempt counter
+  // says "this is in progress, waiting is fine" instead of a dead end.
+  const connecting = configured && !connected
+  const spin = $('spin')
   dot.className = 'dot'
+  dot.hidden = connecting
+  spin.hidden = !connecting
+
   if (connected) {
     dot.classList.add('ok')
     text.textContent = t('statusConnected')
-  } else if (configured) {
-    dot.classList.add('warn')
-    text.textContent = t('statusNoBridge')
+  } else if (connecting) {
+    text.textContent = t('statusRetrying', [String(status.attempts || 1)])
   } else {
     dot.classList.add('warn')
     text.textContent = t('statusNotConfigured')
@@ -115,8 +129,8 @@ function render(status) {
     pairingInitialized = true
   }
 
-  if (configured && !connected && status.lastError) {
-    setNote(String(status.lastError), true)
+  if (connecting && status.lastError && (status.attempts || 0) >= 2) {
+    setNote(explain(status.lastError), true)
   } else if (connected) {
     const note = $('status-note')
     if (note.classList.contains('err')) setNote('')

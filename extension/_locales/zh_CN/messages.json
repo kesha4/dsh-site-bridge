@@ -8,8 +8,14 @@
   "statusConnecting": { "message": "正在检查…" },
   "statusConnected": { "message": "网桥已连接" },
   "statusNoBridge": { "message": "网桥无响应" },
+  "statusRetrying": {
+    "message": "正在连接网桥… 第 $COUNT$ 次",
+    "placeholders": { "count": { "content": "$1" } }
+  },
   "statusNotConfigured": { "message": "尚未配置" },
   "statusWorkerDown": { "message": "扩展服务未响应" },
+  "errorToken": { "message": "令牌与网桥不匹配——请重新导入 bridge.json" },
+  "errorNoBridge": { "message": "DSH 未运行，或网桥未监听该端口" },
 
   "disconnect": { "message": "断开" },
   "targetNoneTitle": { "message": "未连接标签页" },

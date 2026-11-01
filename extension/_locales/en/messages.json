@@ -8,8 +8,14 @@
   "statusConnecting": { "message": "Checking…" },
   "statusConnected": { "message": "Bridge connected" },
   "statusNoBridge": { "message": "Bridge not responding" },
+  "statusRetrying": {
+    "message": "Waiting for the bridge… attempt $COUNT$",
+    "placeholders": { "count": { "content": "$1" } }
+  },
   "statusNotConfigured": { "message": "Not configured" },
   "statusWorkerDown": { "message": "Extension service is not responding" },
+  "errorToken": { "message": "Token does not match the bridge — import bridge.json again" },
+  "errorNoBridge": { "message": "DSH is not running, or the bridge is not listening on this port" },
 
   "disconnect": { "message": "Disconnect" },
   "targetNoneTitle": { "message": "No tab connected" },

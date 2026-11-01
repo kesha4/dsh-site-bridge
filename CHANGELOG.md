@@ -13,6 +13,22 @@ three at once.
 
 _Nothing yet._
 
+## [0.3.1] — 2026-11-02
+
+### Added
+
+- **Connection progress.** While the bridge is not answering, the popup shows a spinner and
+  "Подключаюсь к мосту… попытка N" (`Waiting for the bridge… attempt N`, `正在连接网桥… 第 N 次`)
+  instead of a dead end, so waiting is an obvious option.
+- Transport errors are translated into actionable hints: a token mismatch and "DSH is not running"
+  read differently, and the raw error only appears after two attempts.
+
+### Fixed
+
+- `hidden` elements with `display: flex` stayed visible — an empty tab switcher showed up in the popup.
+- `node tools/version.mjs bump` stamped the date in UTC and dropped the `[Unreleased]` body; it now uses
+  the local date and keeps the section intact, covered by `test/version.test.mjs`.
+
 ## [0.3.0] — 2026-11-02
 
 ### Added

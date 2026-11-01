@@ -8,8 +8,14 @@
   "statusConnecting": { "message": "Проверяю…" },
   "statusConnected": { "message": "Мост подключён" },
   "statusNoBridge": { "message": "Мост не отвечает" },
+  "statusRetrying": {
+    "message": "Подключаюсь к мосту… попытка $COUNT$",
+    "placeholders": { "count": { "content": "$1" } }
+  },
   "statusNotConfigured": { "message": "Не настроен" },
   "statusWorkerDown": { "message": "Служба расширения не отвечает" },
+  "errorToken": { "message": "Токен не совпал с мостом — импортируйте bridge.json заново" },
+  "errorNoBridge": { "message": "DSH не запущен или мост не слушает этот порт" },
 
   "disconnect": { "message": "Отключить" },
   "targetNoneTitle": { "message": "Вкладка не подключена" },

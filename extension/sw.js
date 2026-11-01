@@ -33,6 +33,8 @@ const state = {
   dirty: [],
   flushing: false,
   lastPollOk: 0,
+  // Consecutive failed polls: the popup turns this into "waiting, attempt N".
+  attempts: 0,
   maxBodyChars: DEFAULT_MAX_BODY_CHARS
 }
 
@@ -110,6 +112,7 @@ async function ensureLoop() {
         }
         state.lastPollOk = Date.now()
         state.lastError = null
+        state.attempts = 0
         for (const command of reply.commands || []) {
           // Sequential: a command may pin a tab for its whole duration.
           await runCommand(cfg, command)
@@ -117,6 +120,7 @@ async function ensureLoop() {
       } catch (error) {
         greeted = false
         state.lastError = String(error?.message ?? error)
+        state.attempts = (state.attempts || 0) + 1
         await sleep(1200)
       }
     }
@@ -181,6 +185,7 @@ async function handleMessageInner(message) {
       port: cfg.port,
       connected: state.lastPollOk > 0 && Date.now() - state.lastPollOk < 45000,
       lastError: state.lastError ?? null,
+      attempts: state.attempts || 0,
       target: active?.target ?? null,
       activeTabId: state.activeTabId,
       targets: [...state.sessions.values()].map((session) => ({

@@ -26,9 +26,13 @@ const statuses = {
     target: { title: 'Ozon: Торговая площадка', url: 'https://seller.ozon.ru/app/products' }
   },
   notarget: { ok: true, configured: true, connected: true, port: 47321, recording: false, captured: 0, target: null },
+  connecting: {
+    ok: true, configured: true, connected: false, port: 47321, recording: false, captured: 0,
+    attempts: 1, target: null, lastError: 'Failed to fetch'
+  },
   offline: {
     ok: true, configured: true, connected: false, port: 47321, recording: false, captured: 0,
-    target: null, lastError: 'bridge HTTP 401'
+    attempts: 3, target: null, lastError: 'bridge HTTP 401'
   }
 }
 
