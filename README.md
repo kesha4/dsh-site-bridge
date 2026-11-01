@@ -1,5 +1,7 @@
 # dsh-site-bridge
 
+**English** · [Русский](README.ru.md) · [中文](README.zh-CN.md)
+
 **Hands and eyes for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) in your own browser.**
 Capture a page's markup and its BFF traffic into files an agent can read, drive the page with trusted
 input, and verify the extension you just wrote — live, in the same tab.
