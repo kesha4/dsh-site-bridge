@@ -192,6 +192,23 @@ tools/          icon rasteriser, popup/icon previews, asar reader (dev only)
 test/           unit, integration, end-to-end
 ```
 
+
+
+MIT — see [LICENSE](LICENSE).
+
+## Versioning
+
+The version lives in `package.json` and is mirrored into `extension/manifest.json`; `CHANGELOG.md`
+holds the history. Every commit that changes shipped code bumps the version, docs-only commits do not:
+
+```powershell
+node tools\version.mjs check                  # fail if the three files disagree
+node tools\version.mjs bump minor             # bump package.json + manifest.json + CHANGELOG stub
+```
+
+Releases are tagged `vX.Y.Z`. Versions below 0.3.0 were assigned retroactively from the commit
+history, so an old tag may pin commit content that still carried the 0.1.0 stamp.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

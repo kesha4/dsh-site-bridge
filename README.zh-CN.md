@@ -157,6 +157,23 @@ tools/          图标栅格化、弹窗/图标预览、asar 读取（仅开发�
 test/           单元、集成、端到端
 ```
 
+
+
+MIT —— 见 [LICENSE](LICENSE)。
+
+## 版本管理
+
+版本号保存在 `package.json`，并同步到 `extension/manifest.json`；历史记录在 `CHANGELOG.md`。
+任何改动发布代码的提交都要提升版本号，仅文档的提交不需要：
+
+```powershell
+node tools\version.mjs check                  # 三个文件不一致时报错
+node tools\version.mjs bump minor             # 同步更新 package.json、manifest.json 与 CHANGELOG 条目
+```
+
+发布使用 `vX.Y.Z` 标签。0.3.0 之前的版本是按提交历史回溯标注的，因此旧标签指向的内容里
+可能仍写着 0.1.0。
+
 ## 许可证
 
 MIT —— 见 [LICENSE](LICENSE)。
