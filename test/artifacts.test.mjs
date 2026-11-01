@@ -122,3 +122,26 @@ test('writeBundle writes every artifact and nothing secret', async () => {
   assert.doesNotMatch(api, /Bearer /)
   assert.match(await readFile(join(result.dir, 'selectors.md'), 'utf8'), /Купить/)
 })
+
+test('a large response body is spilled to bodies/ instead of inlined', async () => {
+  await rm(ROOT, { recursive: true, force: true })
+  await mkdir(ROOT, { recursive: true })
+  const big = JSON.stringify({ items: Array.from({ length: 9000 }, (_, i) => ({ id: i, sku: `SKU-${i}` })) })
+  assert.ok(big.length > 200_000, `fixture must exceed the spill threshold, got ${big.length}`)
+  const result = await writeBundle({
+    root: ROOT,
+    host: 'shop.test',
+    snapshot,
+    entries: [{ ...entries[1], id: 'big-1', response: { headers: {}, body: big } }],
+    meta: { host: 'shop.test', url: snapshot.url, title: snapshot.title, capturedAt: new Date().toISOString() }
+  })
+  assert.equal(result.spilled, 1)
+  const bodyFile = result.files.find((name) => name.startsWith('bodies/'))
+  assert.ok(bodyFile, result.files.join(','))
+  assert.equal((await readFile(join(result.dir, bodyFile), 'utf8')).length, big.length)
+  const line = JSON.parse((await readFile(join(result.dir, 'network.jsonl'), 'utf8')).trim())
+  assert.equal(line.response.body, null)
+  assert.equal(line.response.bodyRef, bodyFile)
+  assert.equal(line.response.bodyChars, big.length)
+  assert.match(await readFile(join(result.dir, 'api.md'), 'utf8'), /saved separately/)
+})

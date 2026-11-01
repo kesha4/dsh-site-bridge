@@ -6,10 +6,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Changed
+
+- **Response bodies are no longer silently cut at 400 KB.** The extension keeps up to 5 MB per body
+  (`maxBodyChars` in `chrome.storage.local`), records `bodyChars` and an explicit `truncated` flag,
+  and the host writes anything above 200 KB to `bodies/<id>.json` with `bodyRef`/`bodyChars` in
+  `network.jsonl`. `api.md` points at the file instead of printing a megabyte. Base64 bodies are
+  reported as a byte count instead of a fake string.
+
 ### Added
 
-- Configurable network body limit with spill-to-file for large payloads
-  (see `docs/limitations.md`).
+- Test coverage for the spill path (`test/artifacts.test.mjs`).
 
 ## [0.1.0] — 2026-11-02
 

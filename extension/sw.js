@@ -17,7 +17,10 @@
 
 const EXT_VERSION = '0.1.0'
 const NET_CAP = 600
-const BODY_CAP = 400_000
+// Bodies are kept up to this size in the worker, then marked as truncated.
+// Raise it per machine with chrome.storage.local.set({ maxBodyChars }): the
+// host writes oversized bodies to files instead of printing them.
+const DEFAULT_MAX_BODY_CHARS = 5_000_000
 
 const state = {
   attachedTabId: null,
@@ -26,13 +29,15 @@ const state = {
   entries: [],
   dirty: [],
   flushing: false,
-  lastPollOk: 0
+  lastPollOk: 0,
+  maxBodyChars: DEFAULT_MAX_BODY_CHARS
 }
 
 /* ------------------------------------------------------------------ config */
 
 async function loadCfg() {
-  const stored = await chrome.storage.local.get({ port: 47321, token: '' })
+  const stored = await chrome.storage.local.get({ port: 47321, token: '', maxBodyChars: DEFAULT_MAX_BODY_CHARS })
+  state.maxBodyChars = Number(stored.maxBodyChars) || DEFAULT_MAX_BODY_CHARS
   return { port: Number(stored.port) || 47321, token: String(stored.token || '') }
 }
 
@@ -304,7 +309,20 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
           { requestId: params.requestId }
         )
         .then(({ body, base64Encoded }) => {
-          entry.response.body = base64Encoded ? `«base64:${String(body).length} chars»` : String(body ?? '').slice(0, BODY_CAP)
+          const text = String(body ?? '')
+          if (base64Encoded) {
+            entry.response.body = null
+            entry.response.base64Chars = text.length
+            entry.response.note = 'base64 body not stored'
+          } else {
+            const limit = Number(state.maxBodyChars) || DEFAULT_MAX_BODY_CHARS
+            entry.response.body = text.slice(0, limit)
+            entry.response.bodyChars = text.length
+            if (text.length > limit) {
+              entry.response.truncated = true
+              entry.response.truncatedAt = limit
+            }
+          }
           if (state.recording) keepEntry(entry)
         })
         .catch(() => {
