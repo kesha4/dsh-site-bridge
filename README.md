@@ -162,7 +162,7 @@ The wire protocol is small and documented in [docs/protocol.md](docs/protocol.md
 
 ## Limitations
 
-Cross-origin iframes, closed shadow roots, body size caps and one tab per session are analysed in
+Cross-origin iframes, closed shadow roots and body size caps are analysed in
 [docs/limitations.md](docs/limitations.md) — with the exact code location, the plan to remove each and
 the expected cost.
 

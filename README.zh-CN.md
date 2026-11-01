@@ -131,7 +131,7 @@ site_inject {js:"..."}          → 在页面中执行你的脚本以验证
 
 ## 限制
 
-跨域 iframe、封闭的 shadow root、响应体大小上限与「一个会话一个标签页」在 [docs/limitations.md](docs/limitations.md) 中逐条分析 —— 包含代码位置、消除方案与预估成本。
+跨域 iframe、封闭的 shadow root 与响应体大小上限在 [docs/limitations.md](docs/limitations.md) 中逐条分析 —— 包含代码位置、消除方案与预估成本。
 
 ## 测试
 
