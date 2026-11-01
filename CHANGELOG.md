@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+### Added
+
+- **Several tabs per session.** The worker keeps one debugger session per tab, the bridge tracks all
+  attached targets with an active one, tools accept an optional `tab` id, and `site_tabs` gained
+  `use` / `release`. The popup shows a tab switcher once more than one tab is attached.
+  Commands run sequentially so a pinned tab applies to the whole command.
+
 ### Changed
 
 - **Response bodies are no longer silently cut at 400 KB.** The extension keeps up to 5 MB per body

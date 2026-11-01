@@ -16,6 +16,7 @@
   "targetNoneUrl": { "message": "打开需要的页面并连接它" },
   "connectTab": { "message": "连接此标签页" },
   "tabConnected": { "message": "标签页已连接" },
+  "tabsLabel": { "message": "标签页" },
 
   "connectionTitle": { "message": "配对" },
   "importBridge": { "message": "导入 bridge.json" },

@@ -230,7 +230,7 @@ async function main() {
   const claim = await evalInWorker(`__dshSiteBridge.claimTab(${pageTab.id}).then((t) => t)`)
   check('tab claimed for debugging', claim?.url?.startsWith('http://127.0.0.1'), JSON.stringify(claim))
 
-  const target = await waitFor('bridge target', () => bridge.target)
+  const target = await waitFor('bridge target', () => bridge.state().target)
   check('bridge knows the target tab', target.url.startsWith('http://127.0.0.1'))
 
   // let the page settle after attach

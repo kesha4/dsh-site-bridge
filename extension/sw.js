@@ -23,14 +23,32 @@ const NET_CAP = 600
 const DEFAULT_MAX_BODY_CHARS = 5_000_000
 
 const state = {
-  attachedTabId: null,
-  target: null,
-  recording: false,
-  entries: [],
+  // One entry per attached tab. Every command resolves a tab (explicitly or
+  // the active one), so several tabs can be driven without extra UI.
+  sessions: new Map(),
+  activeTabId: null,
+  // Tab pinned for the duration of one command, so `args.tabId` reaches every
+  // helper (cdp, snapshot, steps) without threading it through each call.
+  commandTabId: null,
   dirty: [],
   flushing: false,
   lastPollOk: 0,
   maxBodyChars: DEFAULT_MAX_BODY_CHARS
+}
+
+function activeSession() {
+  return state.activeTabId == null ? null : state.sessions.get(state.activeTabId) ?? null
+}
+
+function sessionOf(tabId) {
+  const wanted = tabId == null || tabId === '' ? state.commandTabId ?? state.activeTabId : Number(tabId)
+  return wanted == null ? null : state.sessions.get(wanted) ?? null
+}
+
+function requireSession(tabId) {
+  const session = sessionOf(tabId)
+  if (session) return session
+  throw new Error(tabId == null || tabId === '' ? 'no page attached: claim a tab first' : `tab ${tabId} is not attached`)
 }
 
 /* ------------------------------------------------------------------ config */
@@ -84,13 +102,17 @@ async function ensureLoop() {
         if (!greeted) {
           greeted = true
           await evt('hello', { version: EXT_VERSION, browser: navigator.userAgent })
-          if (state.target) await evt('target', { tab: state.target })
-          await evt('netcontrol', { recording: state.recording })
+          for (const session of state.sessions.values()) {
+            await evt('target', { tab: session.target })
+            await evt('netcontrol', { recording: session.recording, tabId: session.tabId })
+          }
+          if (state.activeTabId != null) await evt('active', { tabId: state.activeTabId })
         }
         state.lastPollOk = Date.now()
         state.lastError = null
         for (const command of reply.commands || []) {
-          void runCommand(cfg, command)
+          // Sequential: a command may pin a tab for its whole duration.
+          await runCommand(cfg, command)
         }
       } catch (error) {
         greeted = false
@@ -109,11 +131,15 @@ function sleep(ms) {
 
 async function runCommand(cfg, command) {
   let payload
+  const previousTab = state.commandTabId
+  state.commandTabId = command.args?.tabId == null ? null : Number(command.args.tabId)
   try {
     const data = await handle(command.op, command.args || {})
     payload = { id: command.id, ok: true, data }
   } catch (error) {
     payload = { id: command.id, ok: false, error: String(error?.message ?? error) }
+  } finally {
+    state.commandTabId = previousTab
   }
   try {
     await api(cfg, '/v1/result', { method: 'POST', body: JSON.stringify(payload) })
@@ -129,22 +155,41 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true
 })
 
-async function handleMessage(message) {
+function handleMessage(message) {
+  return handleMessageInner(message)
+}
+
+async function handleMessageInner(message) {
   if (message?.type === 'claim') {
-    await claimTab(message.tabId)
-    return { ok: true, target: state.target }
+    const target = await claimTab(message.tabId)
+    return { ok: true, target }
+  }
+  if (message?.type === 'use') {
+    const tabId = Number(message.tabId)
+    const session = state.sessions.get(tabId)
+    if (!session) throw new Error(`tab ${tabId} is not attached`)
+    state.activeTabId = tabId
+    await evt('active', { tabId })
+    return { ok: true, target: session.target }
   }
   if (message?.type === 'status') {
     const cfg = await loadCfg()
+    const active = activeSession()
     return {
       ok: true,
       configured: cfg.token !== '',
       port: cfg.port,
       connected: state.lastPollOk > 0 && Date.now() - state.lastPollOk < 45000,
       lastError: state.lastError ?? null,
-      target: state.target,
-      recording: state.recording,
-      captured: state.entries.length
+      target: active?.target ?? null,
+      activeTabId: state.activeTabId,
+      targets: [...state.sessions.values()].map((session) => ({
+        ...session.target,
+        recording: session.recording,
+        captured: session.entries.length
+      })),
+      recording: active?.recording ?? false,
+      captured: active?.entries.length ?? 0
     }
   }
   if (message?.type === 'save') {
@@ -154,37 +199,42 @@ async function handleMessage(message) {
     return { ok: true }
   }
   if (message?.type === 'release') {
-    await detach()
+    await detach(message.tabId == null || message.tabId === '' ? state.activeTabId : Number(message.tabId))
     return { ok: true }
   }
   if (message?.type === 'toggle-capture') {
-    return { ok: true, recording: await setRecording(message.on === true) }
+    const session = requireSession(message.tabId)
+    return { ok: true, recording: await setRecording(session, message.on === true) }
   }
   return { ok: false, error: `unknown message ${message?.type}` }
 }
 
 /* --------------------------------------------------------------- debugging */
 
-async function cdp(method, params = {}) {
-  if (state.attachedTabId == null) throw new Error('no page attached: open the popup and claim the tab first')
-  return chrome.debugger.sendCommand({ tabId: state.attachedTabId }, method, params)
+async function cdp(method, params = {}, tabId) {
+  const session = requireSession(tabId)
+  return chrome.debugger.sendCommand({ tabId: session.tabId }, method, params)
 }
 
-async function detach() {
-  const tabId = state.attachedTabId
-  state.attachedTabId = null
-  state.target = null
-  state.recording = false
-  await evt('target', { tab: null })
-  await evt('netcontrol', { recording: false })
-  if (tabId != null) await chrome.debugger.detach({ tabId }).catch(() => {})
+async function detach(tabId) {
+  const session = state.sessions.get(Number(tabId))
+  if (!session) return
+  state.sessions.delete(session.tabId)
+  if (state.activeTabId === session.tabId) {
+    state.activeTabId = state.sessions.size > 0 ? [...state.sessions.keys()][0] : null
+  }
+  await evt('target', { tab: null, tabId: session.tabId })
+  await chrome.debugger.detach({ tabId: session.tabId }).catch(() => {})
 }
 
 async function attach(tabId) {
-  if (state.attachedTabId === tabId) return
-  if (state.attachedTabId != null) await chrome.debugger.detach({ tabId: state.attachedTabId }).catch(() => {})
+  const existing = state.sessions.get(tabId)
+  if (existing) {
+    state.activeTabId = tabId
+    await evt('active', { tabId })
+    return existing.target
+  }
   await chrome.debugger.attach({ tabId }, '1.3')
-  state.attachedTabId = tabId
   await chrome.debugger.sendCommand({ tabId }, 'Network.enable', {
     maxTotalBufferSize: 64_000_000,
     maxResourceBufferSize: 16_000_000,
@@ -193,9 +243,17 @@ async function attach(tabId) {
   await chrome.debugger.sendCommand({ tabId }, 'Page.enable').catch(() => {})
   await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable').catch(() => {})
   const tab = await chrome.tabs.get(tabId)
-  state.target = { id: tab.id, url: tab.url, title: tab.title }
-  await evt('target', { tab: state.target })
-  await evt('netcontrol', { recording: state.recording })
+  const session = {
+    tabId,
+    target: { id: tab.id, url: tab.url, title: tab.title },
+    recording: false,
+    entries: []
+  }
+  state.sessions.set(tabId, session)
+  state.activeTabId = tabId
+  await evt('target', { tab: session.target })
+  await evt('active', { tabId })
+  return session.target
 }
 
 async function claimTab(tabId) {
@@ -203,29 +261,29 @@ async function claimTab(tabId) {
   if (!/^https?:|^file:/.test(tab.url ?? '')) {
     throw new Error(`cannot drive ${tab.url || 'this tab'}: only http(s) and file:// pages are supported`)
   }
-  await attach(tabId)
-  return state.target
+  return attach(tabId)
 }
 
 chrome.debugger.onDetach.addListener((source, reason) => {
-  if (source.tabId === state.attachedTabId) {
-    state.attachedTabId = null
-    state.target = null
-    state.recording = false
-    void evt('target', { tab: null })
-    void evt('netcontrol', { recording: false })
-    if (reason !== 'target_closed') void evt('error', { message: `debugger detached: ${reason}` })
+  const session = state.sessions.get(source.tabId)
+  if (!session) return
+  state.sessions.delete(source.tabId)
+  if (state.activeTabId === source.tabId) {
+    state.activeTabId = state.sessions.size > 0 ? [...state.sessions.keys()][0] : null
   }
+  void evt('target', { tab: null, tabId: source.tabId })
+  if (reason !== 'target_closed') void evt('error', { message: `debugger detached: ${reason}` })
 })
 
 /* ----------------------------------------------------------------- network */
 
 const requests = new Map()
 
-function keepEntry(entry) {
-  state.entries.push(entry)
-  state.dirty.push(entry)
-  if (state.entries.length > NET_CAP) state.entries.splice(0, state.entries.length - NET_CAP)
+function keepEntry(session, entry) {
+  entry.tabId = session.tabId
+  session.entries.push(entry)
+  state.dirty.push({ tabId: session.tabId, entry })
+  if (session.entries.length > NET_CAP) session.entries.splice(0, session.entries.length - NET_CAP)
   scheduleFlush()
 }
 
@@ -235,7 +293,13 @@ function scheduleFlush() {
   setTimeout(() => {
     state.flushing = false
     const batch = state.dirty.splice(0)
-    if (batch.length > 0) void evt('net', { entries: batch })
+    if (batch.length === 0) return
+    const byTab = new Map()
+    for (const item of batch) {
+      if (!byTab.has(item.tabId)) byTab.set(item.tabId, [])
+      byTab.get(item.tabId).push(item.entry)
+    }
+    for (const [tabId, entries] of byTab) void evt('net', { tabId, entries })
   }, 400)
 }
 
@@ -269,10 +333,11 @@ function shouldCapture(params, pageUrl) {
 }
 
 chrome.debugger.onEvent.addListener((source, method, params) => {
-  if (source.tabId !== state.attachedTabId) return
+  const session = state.sessions.get(source.tabId)
+  if (!session) return
   try {
     if (method === 'Network.requestWillBeSent') {
-      if (!shouldCapture(params, state.target?.url)) return
+      if (!shouldCapture(params, session.target?.url)) return
       requests.set(params.requestId, {
         id: params.requestId,
         ts: Date.now(),
@@ -323,11 +388,11 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
               entry.response.truncatedAt = limit
             }
           }
-          if (state.recording) keepEntry(entry)
+          if (session.recording) keepEntry(session, entry)
         })
         .catch(() => {
           entry.response.body = null
-          if (state.recording) keepEntry(entry)
+          if (session.recording) keepEntry(session, entry)
         })
       return
     }
@@ -336,25 +401,24 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
       if (!entry) return
       entry.failed = params.errorText || 'failed'
       requests.delete(params.requestId)
-      if (state.recording) keepEntry(entry)
+      if (session.recording) keepEntry(session, entry)
     }
   } catch {
     // never let a capture bug break the debugger session
   }
 })
 
-async function setRecording(on) {
+async function setRecording(session, on) {
   if (on) {
-    if (state.attachedTabId == null) throw new Error('claim a tab before starting capture')
-    state.entries = []
-    state.dirty = []
+    session.entries = []
+    state.dirty = state.dirty.filter((item) => item.tabId !== session.tabId)
     requests.clear()
-    state.recording = true
+    session.recording = true
   } else {
-    state.recording = false
+    session.recording = false
   }
-  await evt('netcontrol', { recording: state.recording })
-  return state.recording
+  await evt('netcontrol', { recording: session.recording, tabId: session.tabId })
+  return session.recording
 }
 
 /* ------------------------------------------------------------------ cursor */
@@ -978,27 +1042,57 @@ async function handle(op, args) {
       const tabs = await chrome.tabs.query({})
       const list = tabs
         .filter((tab) => /^https?:|^file:/.test(tab.url ?? ''))
-        .map((tab) => ({ id: tab.id, title: tab.title, url: tab.url, active: tab.active, windowId: tab.windowId, target: tab.id === state.attachedTabId }))
+        .map((tab) => ({
+          id: tab.id,
+          title: tab.title,
+          url: tab.url,
+          active: tab.active,
+          windowId: tab.windowId,
+          attached: state.sessions.has(tab.id),
+          target: tab.id === state.activeTabId
+        }))
       await evt('tabs', { tabs: list })
       return { tabs: list }
     }
     case 'tab.claim':
       return { target: await claimTab(Number(args.tabId)) }
-    case 'tab.info':
-      return { target: state.target, attached: state.attachedTabId }
-    case 'net.start':
-      return { recording: await setRecording(true) }
-    case 'net.stop':
-      return { recording: await setRecording(false), captured: state.entries.length }
-    case 'net.clear':
-      state.entries = []
-      state.dirty = []
-      await evt('netclear', {})
+    case 'tab.use': {
+      const tabId = Number(args.tabId)
+      const session = state.sessions.get(tabId)
+      if (!session) throw new Error(`tab ${tabId} is not attached`)
+      state.activeTabId = tabId
+      await evt('active', { tabId })
+      return { target: session.target }
+    }
+    case 'tab.release': {
+      const tabId = Number(args.tabId ?? state.activeTabId)
+      await detach(tabId)
+      return { detached: tabId }
+    }
+    case 'tab.info': {
+      const active = activeSession()
+      return { target: active?.target ?? null, attached: state.activeTabId, tabs: [...state.sessions.keys()] }
+    }
+    case 'net.start': {
+      const session = requireSession(args.tabId)
+      return { recording: await setRecording(session, true), tabId: session.tabId }
+    }
+    case 'net.stop': {
+      const session = requireSession(args.tabId)
+      return { recording: await setRecording(session, false), captured: session.entries.length, tabId: session.tabId }
+    }
+    case 'net.clear': {
+      const session = requireSession(args.tabId)
+      session.entries = []
+      state.dirty = state.dirty.filter((item) => item.tabId !== session.tabId)
+      await evt('netclear', { tabId: session.tabId })
       return { captured: 0 }
+    }
     case 'net.list': {
+      const session = requireSession(args.tabId)
       const query = String(args.query ?? '').toLowerCase()
       const limit = Math.min(Number(args.limit ?? 50), 200)
-      const items = state.entries
+      const items = session.entries
         .filter((entry) => (query === '' ? true : `${entry.method} ${entry.url}`.toLowerCase().includes(query)))
         .slice(-limit)
         .map((entry) => ({
@@ -1011,10 +1105,11 @@ async function handle(op, args) {
           failed: entry.failed,
           hasBody: Boolean(entry.response?.body)
         }))
-      return { captured: state.entries.length, items }
+      return { captured: session.entries.length, items }
     }
     case 'net.get': {
-      const entry = state.entries.find((item) => String(item.id) === String(args.id))
+      const session = requireSession(args.tabId)
+      const entry = session.entries.find((item) => String(item.id) === String(args.id))
       if (!entry) throw new Error(`no captured request ${args.id}`)
       return { entry }
     }

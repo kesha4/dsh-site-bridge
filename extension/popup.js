@@ -79,6 +79,24 @@ function render(status) {
   $('target-title').textContent = hasTarget ? status.target.title || status.target.url : t('targetNoneTitle')
   $('target-url').textContent = hasTarget ? String(status.target.url || '') : t('targetNoneUrl')
 
+  // Several attached tabs: a compact switcher, nothing else changes.
+  const targets = Array.isArray(status.targets) ? status.targets : []
+  const tabsRow = $('tabs-row')
+  const tabsSelect = $('tabs-select')
+  if (targets.length > 1) {
+    tabsRow.hidden = false
+    tabsSelect.textContent = ''
+    for (const item of targets) {
+      const option = document.createElement('option')
+      option.value = String(item.id)
+      option.textContent = item.title || item.url || `#${item.id}`
+      option.selected = item.id === status.activeTabId
+      tabsSelect.appendChild(option)
+    }
+  } else {
+    tabsRow.hidden = true
+  }
+
   // Nothing to claim once a tab is bound: the action would be a no-op.
   claim.hidden = hasTarget
   claim.disabled = !connected || hasTarget
@@ -208,6 +226,13 @@ $('capture').addEventListener('click', async () => {
 
 $('release').addEventListener('click', async () => {
   await send({ type: 'release' })
+  await refresh()
+})
+
+$('tabs-select').addEventListener('change', async (event) => {
+  const tabId = Number(event.target.value)
+  if (!Number.isFinite(tabId)) return
+  await send({ type: 'use', tabId })
   await refresh()
 })
 
