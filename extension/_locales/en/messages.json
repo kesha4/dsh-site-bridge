@@ -16,6 +16,7 @@
   "targetNoneUrl": { "message": "Open the page you need and connect it" },
   "connectTab": { "message": "Connect this tab" },
   "tabConnected": { "message": "Tab connected" },
+  "tabsLabel": { "message": "Tabs" },
 
   "connectionTitle": { "message": "Pairing" },
   "importBridge": { "message": "Import bridge.json" },

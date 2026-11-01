@@ -16,6 +16,7 @@
   "targetNoneUrl": { "message": "Откройте нужную страницу и подключите её" },
   "connectTab": { "message": "Подключить эту вкладку" },
   "tabConnected": { "message": "Вкладка подключена" },
+  "tabsLabel": { "message": "Вкладки" },
 
   "connectionTitle": { "message": "Подключение" },
   "importBridge": { "message": "Импорт bridge.json" },
