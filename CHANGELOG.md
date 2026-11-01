@@ -13,6 +13,19 @@ three at once.
 
 _Nothing yet._
 
+## [0.3.2] — 2026-11-02
+
+### Fixed
+
+- `handle()` ignored `args.tabId` when called outside the command queue (the debug hook, tests), so a
+  pinned tab silently fell back to the active one and captured traffic from the wrong tab. The pin now
+  happens in `handle()` itself, which every caller goes through.
+
+### Added
+
+- `test/multitab.mjs`: two tabs attached at once, active-tab switching, and per-tab recording
+  isolation, checked against a real Chrome (5 checks).
+
 ## [0.3.1] — 2026-11-02
 
 ### Added

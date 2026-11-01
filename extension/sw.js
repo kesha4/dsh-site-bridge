@@ -1039,7 +1039,23 @@ function snapshotInPage(options) {
 
 /* ----------------------------------------------------------------- dispatch */
 
-async function handle(op, args) {
+/**
+ * Pins the tab named in `args.tabId` for the duration of the call, so every
+ * helper (cdp, steps, snapshot) resolves the same session. The command queue
+ * does this too; doing it here makes direct callers — the debug hook, tests —
+ * behave exactly like the wire protocol.
+ */
+async function handle(op, args = {}) {
+  const previous = state.commandTabId
+  if (args?.tabId != null && args.tabId !== '') state.commandTabId = Number(args.tabId)
+  try {
+    return await dispatch(op, args)
+  } finally {
+    state.commandTabId = previous
+  }
+}
+
+async function dispatch(op, args) {
   switch (op) {
     case 'ping':
       return { ok: true, version: EXT_VERSION }

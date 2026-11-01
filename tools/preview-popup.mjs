@@ -23,7 +23,12 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 const statuses = {
   connected: {
     ok: true, configured: true, connected: true, port: 47321, recording: true, captured: 12,
-    target: { title: 'Ozon: Торговая площадка', url: 'https://seller.ozon.ru/app/products' }
+    activeTabId: 1,
+    target: { id: 1, title: 'Ozon: Торговая площадка', url: 'https://seller.ozon.ru/app/products' },
+    targets: [
+      { id: 1, title: 'Ozon: Торговая площадка', url: 'https://seller.ozon.ru/app/products', recording: true, captured: 12 },
+      { id: 2, title: 'DeepSeek Platform', url: 'https://platform.deepseek.com/usage', recording: false, captured: 0 }
+    ]
   },
   notarget: { ok: true, configured: true, connected: true, port: 47321, recording: false, captured: 0, target: null },
   connecting: {
