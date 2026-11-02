@@ -88,18 +88,27 @@ async function evt(kind, payload = {}) {
 
 let looping = false
 
+/** Runs a promise with a deadline, so one stuck Chrome call cannot park the loop. */
+function withDeadline(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} не ответил за ${ms} мс`)), ms))
+  ])
+}
+
 async function ensureLoop() {
   if (looping) return
   looping = true
   let greeted = false
   try {
     for (;;) {
-      const cfg = await loadCfg()
-      if (!cfg.token) {
-        await sleep(1500)
-        continue
-      }
+      state.lastTick = Date.now()
       try {
+        const cfg = await loadCfg()
+        if (!cfg.token) {
+          await sleep(1500)
+          continue
+        }
         const reply = await api(cfg, '/v1/poll?timeout=20000')
         if (!greeted) {
           greeted = true
@@ -115,7 +124,7 @@ async function ensureLoop() {
         state.attempts = 0
         for (const command of reply.commands || []) {
           // Sequential: a command may pin a tab for its whole duration.
-          await runCommand(cfg, command)
+          await withDeadline(runCommand(cfg, command), 120000, `команда ${command?.op ?? '?'}`)
         }
       } catch (error) {
         greeted = false
@@ -128,6 +137,16 @@ async function ensureLoop() {
     looping = false
   }
 }
+
+// If the loop parks on a Chrome call that never settles, restart it.
+setInterval(() => {
+  if (!looping) return
+  if (Date.now() - (state.lastTick ?? 0) > 90000) {
+    state.lastError = 'цикл опроса завис, перезапускаю'
+    looping = false
+    void ensureLoop()
+  }
+}, 30000)
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -186,6 +205,8 @@ async function handleMessageInner(message) {
       connected: state.lastPollOk > 0 && Date.now() - state.lastPollOk < 45000,
       lastError: state.lastError ?? null,
       attempts: state.attempts || 0,
+      loopAlive: looping,
+      lastTickAgoMs: state.lastTick ? Date.now() - state.lastTick : null,
       target: active?.target ?? null,
       activeTabId: state.activeTabId,
       targets: [...state.sessions.values()].map((session) => ({

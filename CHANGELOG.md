@@ -13,6 +13,18 @@ three at once.
 
 _Nothing yet._
 
+## [0.8.1] — 2026-11-02
+
+### Fixed
+
+- **The worker could park on a Chrome call and stop polling for good.** One `await` that never settles
+  (a stuck `chrome.debugger.attach`) held the loop forever while it still looked "running", so the
+  popup stayed at "попытка 1" and nothing reconnected — not even after importing the right token. Every
+  command now runs under a 120 s deadline, `loadCfg` moved inside the loop's try, and a 30 s watchdog
+  restarts a loop that has not ticked for 90 s.
+- `status` exposes `loopAlive` and `lastTickAgoMs`, so this state is visible instead of guessed.
+
+
 ## [0.8.0] — 2026-11-02
 
 ### Added
