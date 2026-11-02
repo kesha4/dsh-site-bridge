@@ -294,6 +294,25 @@ async function claimTab(tabId) {
   return attach(id)
 }
 
+chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  const session = state.sessions.get(tabId)
+  if (!session) return
+  const next = { id: tab.id, url: tab.url, title: tab.title }
+  if (next.title === session.target.title && next.url === session.target.url) return
+  session.target = next
+  void evt('target', { tab: next, tabId })
+})
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (!state.sessions.has(tabId)) return
+  state.sessions.delete(tabId)
+  if (state.activeTabId === tabId) {
+    state.activeTabId = state.sessions.size > 0 ? [...state.sessions.keys()][0] : null
+  }
+  void evt('target', { tab: null, tabId })
+  void evt('active', { tabId: state.activeTabId })
+})
+
 chrome.debugger.onDetach.addListener((source, reason) => {
   const session = state.sessions.get(source.tabId)
   if (!session) return
@@ -1512,7 +1531,21 @@ async function dispatch(op, args) {
     case 'tab.open': {
       const tab = await chrome.tabs.create({ url: String(args.url ?? 'about:blank'), active: args.active !== false })
       await attach(tab.id)
-      return { target: state.sessions.get(tab.id)?.target ?? { id: tab.id, url: tab.url, title: tab.title } }
+      // A fresh tab has no title yet: wait for the load so the caller gets a
+      // target it can show, instead of an empty string.
+      const deadline = Date.now() + Math.min(Number(args.waitMs ?? 10000), 30000)
+      let info = tab
+      while (Date.now() < deadline) {
+        info = await chrome.tabs.get(tab.id).catch(() => info)
+        if (info.status === 'complete' && info.title) break
+        await sleep(150)
+      }
+      const session = state.sessions.get(tab.id)
+      if (session) {
+        session.target = { id: info.id, url: info.url, title: info.title }
+        await evt('target', { tab: session.target, tabId: tab.id })
+      }
+      return { target: session?.target ?? { id: tab.id, url: tab.url, title: tab.title } }
     }
     case 'tab.focus': {
       const session = requireSession(args.tabId)

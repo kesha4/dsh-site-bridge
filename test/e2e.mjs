@@ -199,6 +199,21 @@ async function main() {
   const { sessionId } = await cdp.send('Target.attachToTarget', { targetId: worker.targetId, flatten: true })
   await cdp.send('Runtime.enable', {}, sessionId)
 
+  // The worker target shows up a moment before its `chrome` bindings exist; an
+  // evaluate that lands in that window fails with "chrome is not defined".
+  await waitFor(
+    'worker chrome bindings',
+    async () => {
+      const { result } = await cdp.send(
+        'Runtime.evaluate',
+        { expression: 'typeof chrome', returnByValue: true },
+        sessionId
+      )
+      return result?.value === 'object' ? true : null
+    },
+    { timeout: 15000 }
+  )
+
   const evalInWorker = async (expression) => {
     const { result, exceptionDetails } = await cdp.send(
       'Runtime.evaluate',

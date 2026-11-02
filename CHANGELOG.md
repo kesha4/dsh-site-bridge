@@ -13,6 +13,20 @@ three at once.
 
 _Nothing yet._
 
+## [0.6.3] — 2026-11-02
+
+### Fixed
+
+- **A freshly opened tab reported an empty title and address.** The session target was captured right
+  after `chrome.tabs.create`, before the page loaded, and nothing refreshed it afterwards. `tab.open`
+  now waits for the load and the worker listens to `chrome.tabs.onUpdated`, so titles update as pages
+  navigate.
+- A tab closed by hand (not through the bridge) left a stale session behind; `chrome.tabs.onRemoved`
+  now drops it and re-points the default tab.
+- `test/e2e.mjs` no longer races the worker: it waits for the `chrome` bindings before the first
+  evaluate, which occasionally failed with "chrome is not defined".
+
+
 ## [0.6.2] — 2026-11-02
 
 ### Added
