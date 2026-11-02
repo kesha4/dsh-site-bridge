@@ -22,7 +22,7 @@ const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 
 const statuses = {
   'connected-one': {
-    ok: true, configured: true, connected: true, port: 47321, recording: false, captured: 0,
+    ok: true, configured: true, connected: true, port: 47321, recording: false, captured: 0, selfTabId: 1,
     activeTabId: 1,
     target: { id: 1, title: 'Example Store — Products', url: 'https://shop.example/products' },
     targets: [
@@ -30,7 +30,7 @@ const statuses = {
     ]
   },
   connected: {
-    ok: true, configured: true, connected: true, port: 47321, recording: true, captured: 12,
+    ok: true, configured: true, connected: true, port: 47321, recording: true, captured: 12, selfTabId: 3,
     activeTabId: 1,
     target: { id: 1, title: 'Ozon: Торговая площадка', url: 'https://seller.ozon.ru/app/products' },
     targets: [
@@ -59,6 +59,7 @@ const stub = `
   window.chrome = {
     runtime: { sendMessage: async (m) => (m.type === 'status' ? ${JSON.stringify(statuses[state] ?? statuses.connected)} : { ok: true }) },
     storage: { local: { get: async () => ({ port: 47321, token: 'GWCIveb--rxL_wKChN9Wl-OJmXFGTK4' }), set: async () => {} } },
+    tabs: { query: async () => [{ id: ${JSON.stringify(statuses[state]?.selfTabId ?? 1)} }] },
     i18n: {
       getUILanguage: () => ${JSON.stringify(locale.replace('_', '-'))},
       getMessage: (key, subs) => {

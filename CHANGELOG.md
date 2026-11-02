@@ -13,6 +13,15 @@ three at once.
 
 _Nothing yet._
 
+## [0.5.2] — 2026-11-02
+
+### Fixed
+
+- The "Подключить ещё вкладку" button was shown even when the popup was opened on a tab that is
+  already attached, where it would have been a no-op. The popup now asks for its own tab and hides the
+  button in that case; it appears only when the current tab is not attached yet.
+
+
 ## [0.5.1] — 2026-11-02
 
 ### Added

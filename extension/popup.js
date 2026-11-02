@@ -101,7 +101,8 @@ function render(status) {
   const targets = Array.isArray(status.targets) ? status.targets : []
   const tabsRow = $('tabs-row')
   const tabsSelect = $('tabs-select')
-  $('claim-more').hidden = !hasTarget
+  const selfAttached = selfTabId != null && targets.some((item) => item.id === selfTabId)
+  $('claim-more').hidden = !hasTarget || selfAttached
   if (targets.length > 1) {
     tabsRow.hidden = false
     tabsSelect.textContent = ''
@@ -146,8 +147,16 @@ function render(status) {
   }
 }
 
+// Which tab this popup is open on: attaching that tab again is a no-op, so the
+// attach button is only offered when the current tab is not attached yet.
+let selfTabId = null
+
 async function refresh() {
   try {
+    if (chrome.tabs?.query) {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      selfTabId = tab?.id ?? null
+    }
     render(await send({ type: 'status' }))
   } catch {
     render(null)
