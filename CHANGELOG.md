@@ -13,6 +13,22 @@ three at once.
 
 _Nothing yet._
 
+## [0.4.0] — 2026-11-02
+
+### Added
+
+- **Element picker.** A cursor button in the popup arms an overlay in the page: hover highlights the
+  element, a click opens a note field (Enter saves, Shift+Enter adds a line, Esc cancels), and the
+  result — stable CSS selector, absolute XPath, text, box and the note — comes back through the new
+  `site_pick` tool. Picks are appended to `captures/picks.jsonl`, so a capture session keeps the
+  human's annotations next to the machine's snapshot.
+- `dom.json` nodes now carry an absolute `xpath` next to the CSS selector candidates.
+- README (en/ru/zh): a section on how this differs from browser automation plugins, and an explicit
+  position on the security trade-off instead of an implicit claim of being better.
+- `test/picker.mjs`: 8 checks in a real Chrome — arm, hover, real click, note, and both the selector
+  and the XPath resolving to the clicked element.
+
+
 ## [0.3.3] — 2026-11-02
 
 ### Added

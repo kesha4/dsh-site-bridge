@@ -59,6 +59,21 @@ that code in the live page, so "it should work" becomes "it works here".
   focused (Chrome throttles only timers and animation there).
 - **No stored credentials** — see [Security](#security).
 
+### How this differs from browser automation plugins
+
+There are plugins that hand an agent `browser_*` tools: navigate, click, type, read the page. This is
+not one of them, even though it can do those things — input here is the instrument that verifies a
+capture, not the product.
+
+The product is the capture: the DOM with boxes and computed styles, theme CSS variables, selector
+candidates checked for uniqueness, and the site's own xhr/fetch calls with headers and bodies, all
+written to files an agent can read. Automation exists so that "this selector works" and "this BFF call
+passes with my cookies" are checked against the live page instead of assumed.
+
+The practical consequence: for generic web browsing, a dedicated automation plugin will have more
+tools than this one, and that is fine — it is solving a different problem. For writing an extension
+that embeds into one specific site, you need the capture, and the input comes with it.
+
 ## Requirements
 
 - DeepSeek Harness with the `dsh` CLI and a profile (Desktop or Web).
@@ -165,6 +180,13 @@ The wire protocol is small and documented in [docs/protocol.md](docs/protocol.md
 - **Residual risk.** Header values and bodies still pass through the DSH process in memory. If a site
   puts a secret under an unusual key, redaction will not recognise it. Treat a capture bundle as
   sensitive, exactly like any traffic dump.
+
+### Position on trust
+
+This is a deliberate trade-off, not a claim of superiority. The bridge requires a token and the
+extension asks for `debugger` rather than `<all_urls>`, which costs convenience — a pairing step and
+the Chrome debugging banner — and buys a smaller blast radius. Plugins that skip the token or take
+host permissions are not doing it wrong; they optimise for a different thing.
 
 ## Limitations
 

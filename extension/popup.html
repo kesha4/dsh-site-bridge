@@ -78,6 +78,13 @@
       button.primary:hover:not(:disabled) { background: #6b8aff; border-color: #6b8aff; }
       button.primary:disabled { background: #20242d; border-color: var(--line); color: var(--muted); font-weight: 500; }
       button.ghost { padding: 3px 8px; font-size: 11px; background: transparent; color: var(--muted); }
+      button.icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        padding: 4px; width: 26px; height: 26px; background: transparent;
+        border: 1px solid var(--line); border-radius: 6px; color: var(--muted);
+      }
+      button.icon:hover:not(:disabled) { color: var(--text); border-color: #3a4150; }
+      button.icon.active { color: var(--accent); border-color: var(--accent); }
       button.ghost:hover:not(:disabled) { color: var(--text); }
       button.link {
         padding: 0; border: none; background: none; color: var(--accent);
@@ -132,7 +139,12 @@
     <section class="card">
       <div class="card-head">
         <span class="pill"><i class="dot" id="dot"></i><i class="spin" id="spin" hidden></i><span id="connection-text" data-i18n="statusConnecting">Проверяю…</span></span>
-        <button class="ghost" id="release" hidden data-i18n="disconnect">Отключить</button>
+        <span style="display:flex;gap:6px;align-items:center">
+          <button class="icon" id="pick" data-i18n-title="pickHint" title="Pick an element">
+            <svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 2 L3 16 L7.2 12.2 L9.6 17.6 L12.2 16.4 L9.8 11.2 L15 11.2 Z" fill="currentColor"/></svg>
+          </button>
+          <button class="ghost" id="release" hidden data-i18n="disconnect">Отключить</button>
+        </span>
       </div>
 
       <div class="target empty" id="target-block">

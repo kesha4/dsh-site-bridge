@@ -19,6 +19,10 @@ function applyLocale() {
     const message = t(node.dataset.i18n)
     if (message && message !== node.dataset.i18n) node.textContent = message
   }
+  for (const node of document.querySelectorAll('[data-i18n-title]')) {
+    const message = t(node.dataset.i18nTitle)
+    if (message && message !== node.dataset.i18nTitle) node.title = message
+  }
   for (const node of document.querySelectorAll('[data-i18n-placeholder]')) {
     const message = t(node.dataset.i18nPlaceholder)
     if (message && message !== node.dataset.i18nPlaceholder) node.placeholder = message
@@ -116,6 +120,10 @@ function render(status) {
   claim.disabled = !connected || hasTarget
   claim.textContent = hasTarget ? t('tabConnected') : t('connectTab')
   release.hidden = !hasTarget
+
+  const pick = $('pick')
+  pick.classList.toggle('active', status.picking === true)
+  pick.disabled = !connected || !hasTarget
 
   capture.disabled = !connected
   capture.textContent = status.recording ? t('captureShortOn') : t('captureShortOff')
@@ -240,6 +248,22 @@ $('capture').addEventListener('click', async () => {
 
 $('release').addEventListener('click', async () => {
   await send({ type: 'release' })
+  await refresh()
+})
+
+$('pick').addEventListener('click', async () => {
+  const status = await send({ type: 'status' })
+  if (status?.picking) {
+    await send({ type: 'release' }).catch(() => {})
+    await refresh()
+    return
+  }
+  const result = await send({ type: 'pick-arm' })
+  if (!result?.ok) {
+    setNote(String(result?.error ?? 'pick failed'), true)
+    return
+  }
+  setNote(t('pickArmed'))
   await refresh()
 })
 

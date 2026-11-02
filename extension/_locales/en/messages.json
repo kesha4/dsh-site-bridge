@@ -1,50 +1,112 @@
 {
-  "appName": { "message": "DSH Site Bridge" },
+  "appName": {
+    "message": "DSH Site Bridge"
+  },
   "appDesc": {
     "message": "Hands and eyes for DeepSeek Harness in your own browser: page markup, BFF traffic, trusted input and a virtual cursor. Credentials stay in the browser."
   },
-  "tagline": { "message": "DeepSeek Harness in your browser" },
-
-  "statusConnecting": { "message": "Checking…" },
-  "statusConnected": { "message": "Bridge connected" },
-  "statusNoBridge": { "message": "Bridge not responding" },
+  "tagline": {
+    "message": "DeepSeek Harness in your browser"
+  },
+  "statusConnecting": {
+    "message": "Checking…"
+  },
+  "statusConnected": {
+    "message": "Bridge connected"
+  },
+  "statusNoBridge": {
+    "message": "Bridge not responding"
+  },
   "statusRetrying": {
     "message": "Waiting for the bridge… attempt $COUNT$",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "statusNotConfigured": { "message": "Not configured" },
-  "statusWorkerDown": { "message": "Extension service is not responding" },
-  "errorToken": { "message": "Token does not match the bridge — import bridge.json again" },
-  "errorNoBridge": { "message": "DSH is not running, or the bridge is not listening on this port" },
-
-  "disconnect": { "message": "Disconnect" },
-  "targetNoneTitle": { "message": "No tab connected" },
-  "targetNoneUrl": { "message": "Open the page you need and connect it" },
-  "connectTab": { "message": "Connect this tab" },
-  "tabConnected": { "message": "Tab connected" },
-  "tabsLabel": { "message": "Tabs" },
-
-  "connectionTitle": { "message": "Pairing" },
-  "importBridge": { "message": "Import bridge.json" },
-  "portLabel": { "message": "Bridge port" },
-  "tokenLabel": { "message": "Token" },
-  "tokenPlaceholder": { "message": "paste the token or import the file" },
+  "statusNotConfigured": {
+    "message": "Not configured"
+  },
+  "statusWorkerDown": {
+    "message": "Extension service is not responding"
+  },
+  "errorToken": {
+    "message": "Token does not match the bridge — import bridge.json again"
+  },
+  "errorNoBridge": {
+    "message": "DSH is not running, or the bridge is not listening on this port"
+  },
+  "disconnect": {
+    "message": "Disconnect"
+  },
+  "targetNoneTitle": {
+    "message": "No tab connected"
+  },
+  "targetNoneUrl": {
+    "message": "Open the page you need and connect it"
+  },
+  "connectTab": {
+    "message": "Connect this tab"
+  },
+  "tabConnected": {
+    "message": "Tab connected"
+  },
+  "tabsLabel": {
+    "message": "Tabs"
+  },
+  "connectionTitle": {
+    "message": "Pairing"
+  },
+  "importBridge": {
+    "message": "Import bridge.json"
+  },
+  "portLabel": {
+    "message": "Bridge port"
+  },
+  "tokenLabel": {
+    "message": "Token"
+  },
+  "tokenPlaceholder": {
+    "message": "paste the token or import the file"
+  },
   "tokenLength": {
     "message": "$COUNT$ characters",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "hintAutosave": { "message": "Saved automatically, no buttons. Token file:" },
-  "hintFile": { "message": "~/.dsh/site-bridge/bridge.json" },
-
-  "captureTitle": { "message": "API recording" },
+  "hintAutosave": {
+    "message": "Saved automatically, no buttons. Token file:"
+  },
+  "hintFile": {
+    "message": "~/.dsh/site-bridge/bridge.json"
+  },
+  "captureTitle": {
+    "message": "API recording"
+  },
   "records": {
     "message": "$COUNT$ requests",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "captureStart": { "message": "Start recording" },
-  "captureStop": { "message": "Stop recording" },
-  "captureShortOn": { "message": "API capture: on" },
-  "captureShortOff": { "message": "API capture: off" },
+  "captureStart": {
+    "message": "Start recording"
+  },
+  "captureStop": {
+    "message": "Stop recording"
+  },
+  "captureShortOn": {
+    "message": "API capture: on"
+  },
+  "captureShortOff": {
+    "message": "API capture: off"
+  },
   "bannerHintShort": {
     "message": "The “started debugging” banner in Chrome is expected: input and network capture run over it."
   },
@@ -54,15 +116,32 @@
   "bannerHint": {
     "message": "Chrome will show a “started debugging this browser” banner — that is expected: input and network capture run over it."
   },
-
-  "imported": { "message": "Settings imported" },
+  "imported": {
+    "message": "Settings imported"
+  },
   "importFailed": {
     "message": "Import failed: $ERROR$",
-    "placeholders": { "error": { "content": "$1" } }
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   },
   "claimFailed": {
     "message": "Could not connect: $ERROR$",
-    "placeholders": { "error": { "content": "$1" } }
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   },
-  "claimFailedUnknown": { "message": "unknown error" }
+  "claimFailedUnknown": {
+    "message": "unknown error"
+  },
+  "pickHint": {
+    "message": "Pick an element on the page"
+  },
+  "pickArmed": {
+    "message": "Click an element on the page — Enter adds a note, Esc cancels"
+  }
 }

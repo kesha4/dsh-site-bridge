@@ -1,50 +1,112 @@
 {
-  "appName": { "message": "DSH Site Bridge" },
+  "appName": {
+    "message": "DSH Site Bridge"
+  },
   "appDesc": {
     "message": "Глаза и руки DeepSeek Harness в вашем браузере: разметка страницы, трафик BFF, доверенный ввод и виртуальный курсор. Авторизация остаётся в браузере."
   },
-  "tagline": { "message": "DeepSeek Harness в вашем браузере" },
-
-  "statusConnecting": { "message": "Проверяю…" },
-  "statusConnected": { "message": "Мост подключён" },
-  "statusNoBridge": { "message": "Мост не отвечает" },
+  "tagline": {
+    "message": "DeepSeek Harness в вашем браузере"
+  },
+  "statusConnecting": {
+    "message": "Проверяю…"
+  },
+  "statusConnected": {
+    "message": "Мост подключён"
+  },
+  "statusNoBridge": {
+    "message": "Мост не отвечает"
+  },
   "statusRetrying": {
     "message": "Подключаюсь к мосту… попытка $COUNT$",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "statusNotConfigured": { "message": "Не настроен" },
-  "statusWorkerDown": { "message": "Служба расширения не отвечает" },
-  "errorToken": { "message": "Токен не совпал с мостом — импортируйте bridge.json заново" },
-  "errorNoBridge": { "message": "DSH не запущен или мост не слушает этот порт" },
-
-  "disconnect": { "message": "Отключить" },
-  "targetNoneTitle": { "message": "Вкладка не подключена" },
-  "targetNoneUrl": { "message": "Откройте нужную страницу и подключите её" },
-  "connectTab": { "message": "Подключить эту вкладку" },
-  "tabConnected": { "message": "Вкладка подключена" },
-  "tabsLabel": { "message": "Вкладки" },
-
-  "connectionTitle": { "message": "Подключение" },
-  "importBridge": { "message": "Импорт bridge.json" },
-  "portLabel": { "message": "Порт моста" },
-  "tokenLabel": { "message": "Токен" },
-  "tokenPlaceholder": { "message": "вставьте токен или импортируйте файл" },
+  "statusNotConfigured": {
+    "message": "Не настроен"
+  },
+  "statusWorkerDown": {
+    "message": "Служба расширения не отвечает"
+  },
+  "errorToken": {
+    "message": "Токен не совпал с мостом — импортируйте bridge.json заново"
+  },
+  "errorNoBridge": {
+    "message": "DSH не запущен или мост не слушает этот порт"
+  },
+  "disconnect": {
+    "message": "Отключить"
+  },
+  "targetNoneTitle": {
+    "message": "Вкладка не подключена"
+  },
+  "targetNoneUrl": {
+    "message": "Откройте нужную страницу и подключите её"
+  },
+  "connectTab": {
+    "message": "Подключить эту вкладку"
+  },
+  "tabConnected": {
+    "message": "Вкладка подключена"
+  },
+  "tabsLabel": {
+    "message": "Вкладки"
+  },
+  "connectionTitle": {
+    "message": "Подключение"
+  },
+  "importBridge": {
+    "message": "Импорт bridge.json"
+  },
+  "portLabel": {
+    "message": "Порт моста"
+  },
+  "tokenLabel": {
+    "message": "Токен"
+  },
+  "tokenPlaceholder": {
+    "message": "вставьте токен или импортируйте файл"
+  },
   "tokenLength": {
     "message": "$COUNT$ символов",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "hintAutosave": { "message": "Сохраняется само, без кнопок. Файл с токеном:" },
-  "hintFile": { "message": "~/.dsh/site-bridge/bridge.json" },
-
-  "captureTitle": { "message": "Запись API" },
+  "hintAutosave": {
+    "message": "Сохраняется само, без кнопок. Файл с токеном:"
+  },
+  "hintFile": {
+    "message": "~/.dsh/site-bridge/bridge.json"
+  },
+  "captureTitle": {
+    "message": "Запись API"
+  },
   "records": {
     "message": "$COUNT$ запросов",
-    "placeholders": { "count": { "content": "$1" } }
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "captureStart": { "message": "Включить запись" },
-  "captureStop": { "message": "Остановить запись" },
-  "captureShortOn": { "message": "Запись API: вкл" },
-  "captureShortOff": { "message": "Запись API: выкл" },
+  "captureStart": {
+    "message": "Включить запись"
+  },
+  "captureStop": {
+    "message": "Остановить запись"
+  },
+  "captureShortOn": {
+    "message": "Запись API: вкл"
+  },
+  "captureShortOff": {
+    "message": "Запись API: выкл"
+  },
   "bannerHintShort": {
     "message": "Плашка «началась отладка» в Chrome — ожидаема: через неё идёт ввод и чтение сети."
   },
@@ -54,15 +116,32 @@
   "bannerHint": {
     "message": "Chrome покажет плашку «началась отладка» — это ожидаемо: через неё работает ввод и чтение сети."
   },
-
-  "imported": { "message": "Настройки импортированы" },
+  "imported": {
+    "message": "Настройки импортированы"
+  },
   "importFailed": {
     "message": "Импорт не удался: $ERROR$",
-    "placeholders": { "error": { "content": "$1" } }
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   },
   "claimFailed": {
     "message": "Не удалось подключить: $ERROR$",
-    "placeholders": { "error": { "content": "$1" } }
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
   },
-  "claimFailedUnknown": { "message": "неизвестная ошибка" }
+  "claimFailedUnknown": {
+    "message": "неизвестная ошибка"
+  },
+  "pickHint": {
+    "message": "Выбрать элемент на странице"
+  },
+  "pickArmed": {
+    "message": "Кликните по элементу на странице — Enter добавит примечание, Esc отменит"
+  }
 }

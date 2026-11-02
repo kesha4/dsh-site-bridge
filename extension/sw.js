@@ -194,8 +194,16 @@ async function handleMessageInner(message) {
         captured: session.entries.length
       })),
       recording: active?.recording ?? false,
-      captured: active?.entries.length ?? 0
+      captured: active?.entries.length ?? 0,
+      picking: active?.picking === true,
+      picks: active?.picks?.length ?? 0
     }
+  }
+  if (message?.type === 'pick-arm') {
+    const session = requireSession(message.tabId)
+    await armPicker(session.tabId)
+    session.picking = true
+    return { ok: true, picking: true }
   }
   if (message?.type === 'save') {
     await chrome.storage.local.set({ port: Number(message.port) || 47321, token: String(message.token || '') })
@@ -252,7 +260,9 @@ async function attach(tabId) {
     tabId,
     target: { id: tab.id, url: tab.url, title: tab.title },
     recording: false,
-    entries: []
+    entries: [],
+    picking: false,
+    picks: []
   }
   state.sessions.set(tabId, session)
   state.activeTabId = tabId
@@ -424,6 +434,235 @@ async function setRecording(session, on) {
   }
   await evt('netcontrol', { recording: session.recording, tabId: session.tabId })
   return session.recording
+}
+
+/* ------------------------------------------------------------------ picker */
+
+/**
+ * Injected into the page: highlights the element under the cursor, and on click
+ * asks for a note, then publishes the result on `window.__dshPickResult`.
+ * Enter saves, Shift+Enter adds a line, Escape cancels the whole pick.
+ */
+function pickerInPage() {
+  const HOST_ID = '__dsh_pick_overlay__'
+  document.getElementById(HOST_ID)?.remove()
+  window.__dshPickResult = null
+
+  const box = document.createElement('div')
+  box.id = HOST_ID
+  box.style.cssText = [
+    'position:fixed', 'left:0', 'top:0', 'width:0', 'height:0', 'z-index:2147483646',
+    'pointer-events:none', 'border:2px solid #5b7cff', 'border-radius:4px',
+    'background:rgba(91,124,255,.12)'
+  ].join(';')
+
+  const tip = document.createElement('div')
+  tip.style.cssText = [
+    'position:fixed', 'z-index:2147483647', 'pointer-events:none', 'background:#14161b',
+    'color:#e8eaf0', 'border:1px solid #2a2f3a', 'border-radius:4px', 'padding:2px 6px',
+    'font:11px/1.5 monospace', 'max-width:70vw', 'white-space:nowrap', 'overflow:hidden',
+    'text-overflow:ellipsis'
+  ].join(';')
+  tip.hidden = true
+  document.documentElement.append(box, tip)
+
+  const cssEsc = (value) => (window.CSS && CSS.escape ? CSS.escape(value) : String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&'))
+  const count = (selector) => {
+    try { return document.querySelectorAll(selector).length } catch { return -1 }
+  }
+
+  function selectorFor(el) {
+    const candidates = []
+    if (el.id) candidates.push('#' + cssEsc(el.id))
+    for (const attr of ['data-testid', 'data-test', 'data-qa', 'data-cy']) {
+      const value = el.getAttribute(attr)
+      if (value) candidates.push('[' + attr + '="' + value.replace(/"/g, '\\"') + '"]')
+    }
+    if (el.getAttribute('name')) {
+      candidates.push(el.tagName.toLowerCase() + '[name="' + el.getAttribute('name').replace(/"/g, '\\"') + '"]')
+    }
+    if (el.getAttribute('aria-label')) {
+      candidates.push('[aria-label="' + el.getAttribute('aria-label').replace(/"/g, '\\"') + '"]')
+    }
+    const classes = [...el.classList].filter((name) => /^[a-zA-Z][\w-]{2,}$/.test(name)).slice(0, 2)
+    if (classes.length > 0) {
+      candidates.push(el.tagName.toLowerCase() + classes.map((name) => '.' + cssEsc(name)).join(''))
+    }
+    const parts = []
+    let current = el
+    while (current && current.nodeType === 1 && parts.length < 8) {
+      let part = current.tagName.toLowerCase()
+      if (current.id) { parts.unshift('#' + cssEsc(current.id)); break }
+      const parent = current.parentElement
+      if (parent) {
+        const siblings = [...parent.children].filter((node) => node.tagName === current.tagName)
+        if (siblings.length > 1) part += ':nth-of-type(' + (siblings.indexOf(current) + 1) + ')'
+      }
+      parts.unshift(part)
+      current = parent
+    }
+    candidates.push(parts.join(' > '))
+    const unique = candidates.find((selector) => count(selector) === 1)
+    return unique ?? candidates[candidates.length - 1]
+  }
+
+  function xpathFor(el) {
+    if (el.id && count('#' + cssEsc(el.id)) === 1) return '//*[@id="' + el.id + '"]'
+    const parts = []
+    let current = el
+    while (current && current.nodeType === 1) {
+      let index = 1
+      let sibling = current.previousElementSibling
+      while (sibling) {
+        if (sibling.tagName === current.tagName) index += 1
+        sibling = sibling.previousElementSibling
+      }
+      const total = current.parentElement
+        ? [...current.parentElement.children].filter((node) => node.tagName === current.tagName).length
+        : 1
+      parts.unshift(current.tagName.toLowerCase() + (total > 1 ? '[' + index + ']' : ''))
+      current = current.parentElement
+    }
+    return '/' + parts.join('/')
+  }
+
+  let panel = null
+  let hovered = null
+
+  function highlight(el) {
+    const rect = el.getBoundingClientRect()
+    box.style.left = rect.left + 'px'
+    box.style.top = rect.top + 'px'
+    box.style.width = rect.width + 'px'
+    box.style.height = rect.height + 'px'
+    tip.textContent = el.tagName.toLowerCase() + (el.id ? '#' + el.id : '')
+    tip.hidden = false
+    tip.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - 40)) + 'px'
+    tip.style.top = Math.max(2, rect.top - 20) + 'px'
+  }
+
+  function hideBox() {
+    box.style.width = '0'
+    box.style.height = '0'
+    tip.hidden = true
+  }
+
+  function onMove(event) {
+    if (panel) return
+    const el = document.elementFromPoint(event.clientX, event.clientY)
+    if (!el || el === box || el === tip || (panel && panel.contains(el))) return
+    hovered = el
+    highlight(el)
+  }
+
+  function onClick(event) {
+    if (panel) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.stopImmediatePropagation()
+    if (hovered) askNote(hovered)
+  }
+
+  function onKey(event) {
+    if (event.key === 'Escape' && !panel) finish(null, true)
+  }
+
+  function askNote(el) {
+    const rect = el.getBoundingClientRect()
+    panel = document.createElement('div')
+    panel.style.cssText = [
+      'position:fixed', 'z-index:2147483647', 'background:#14161b', 'color:#e8eaf0',
+      'border:1px solid #5b7cff', 'border-radius:8px', 'padding:8px', 'width:260px',
+      'font:12px/1.45 "Segoe UI",system-ui,sans-serif', 'box-shadow:0 8px 24px rgba(0,0,0,.45)'
+    ].join(';')
+    panel.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - 272)) + 'px'
+    panel.style.top = Math.min(window.innerHeight - 120, Math.max(8, rect.bottom + 8)) + 'px'
+
+    const hint = document.createElement('div')
+    hint.textContent = 'Note — Enter to save, Esc to cancel'
+    hint.style.cssText = 'color:#99a1ae;font-size:11px;margin-bottom:4px'
+
+    const input = document.createElement('textarea')
+    input.placeholder = 'what is this element for?'
+    input.style.cssText = 'width:100%;height:46px;resize:none;background:#15181e;color:#e8eaf0;border:1px solid #2a2f3a;border-radius:6px;padding:5px;font:inherit'
+
+    panel.append(hint, input)
+    document.documentElement.appendChild(panel)
+    input.focus()
+
+    input.addEventListener('mousedown', (event) => event.stopPropagation())
+    input.addEventListener('click', (event) => event.stopPropagation())
+    input.addEventListener('keydown', (event) => {
+      event.stopPropagation()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closePanel()
+      }
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault()
+        finish(el, false, input.value.trim())
+      }
+    })
+  }
+
+  function closePanel() {
+    panel?.remove()
+    panel = null
+  }
+
+  function cleanup() {
+    document.removeEventListener('mousemove', onMove, true)
+    document.removeEventListener('click', onClick, true)
+    document.removeEventListener('keydown', onKey, true)
+    box.remove()
+    tip.remove()
+    closePanel()
+    window.__dshPicker = null
+  }
+
+  function finish(el, cancelled, note) {
+    const rect = el ? el.getBoundingClientRect() : null
+    closePanel()
+    cleanup()
+    window.__dshPickResult = cancelled || !el
+      ? { cancelled: true }
+      : {
+          selector: selectorFor(el),
+          xpath: xpathFor(el),
+          text: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 160),
+          tag: el.tagName.toLowerCase(),
+          note: note || '',
+          rect: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) },
+          url: location.href,
+          at: Date.now()
+        }
+  }
+
+  hideBox()
+  document.addEventListener('mousemove', onMove, true)
+  document.addEventListener('click', onClick, true)
+  document.addEventListener('keydown', onKey, true)
+  window.__dshPicker = { stop: () => finish(null, true) }
+  return true
+}
+
+async function armPicker(tabId) {
+  await cdp('Runtime.evaluate', { expression: `(${pickerInPage.toString()})()`, returnByValue: true }, tabId)
+}
+
+async function stopPicker(tabId) {
+  await cdp('Runtime.evaluate', {
+    expression: 'window.__dshPicker && window.__dshPicker.stop ? window.__dshPicker.stop() : null',
+    returnByValue: true
+  }, tabId).catch(() => {})
+}
+
+async function readPick(tabId) {
+  const { result } = await cdp('Runtime.evaluate', {
+    expression: 'window.__dshPickResult || null',
+    returnByValue: true
+  }, tabId)
+  return result?.value ?? null
 }
 
 /* ------------------------------------------------------------------ cursor */
@@ -877,6 +1116,25 @@ function snapshotInPage(options) {
     return parts.join(' > ')
   }
 
+  function xpathFor(el) {
+    const parts = []
+    let current = el
+    while (current && current.nodeType === 1) {
+      let index = 1
+      let sibling = current.previousElementSibling
+      while (sibling) {
+        if (sibling.tagName === current.tagName) index += 1
+        sibling = sibling.previousElementSibling
+      }
+      const total = current.parentElement
+        ? [...current.parentElement.children].filter((node) => node.tagName === current.tagName).length
+        : 1
+      parts.unshift(current.tagName.toLowerCase() + (total > 1 ? '[' + index + ']' : ''))
+      current = current.parentElement
+    }
+    return '/' + parts.join('/')
+  }
+
   // Everything is resolved inside `scope` (document or shadow root), and the
   // result is prefixed with the chain that reaches that scope.
   function candidates(el, scope, prefix) {
@@ -931,6 +1189,7 @@ function snapshotInPage(options) {
       vis: visible,
       d: depth,
       frame: prefix === '' ? null : prefix.replace(/ >>> $/, ''),
+      xpath: xpathFor(el),
       sel: candidates(el, scope, prefix)
     }
     nodes.push(node)
@@ -1108,6 +1367,54 @@ async function dispatch(op, args) {
       state.dirty = state.dirty.filter((item) => item.tabId !== session.tabId)
       await evt('netclear', { tabId: session.tabId })
       return { captured: 0 }
+    }
+    case 'pick.arm': {
+      const session = requireSession(args.tabId)
+      await armPicker(session.tabId)
+      session.picking = true
+      return { picking: true, tabId: session.tabId }
+    }
+    case 'pick.wait': {
+      const session = requireSession(args.tabId)
+      await armPicker(session.tabId)
+      session.picking = true
+      const deadline = Date.now() + Math.min(Number(args.timeoutMs ?? 60000), 120000)
+      while (Date.now() < deadline) {
+        const pick = await readPick(session.tabId)
+        if (pick) {
+          session.picking = false
+          if (pick.cancelled) throw new Error('выбор элемента отменён')
+          session.picks = [...(session.picks ?? []), pick].slice(-20)
+          await evt('pick', { tabId: session.tabId, pick })
+          return { pick }
+        }
+        await sleep(250)
+      }
+      session.picking = false
+      await stopPicker(session.tabId)
+      throw new Error('элемент не выбран за отведённое время')
+    }
+    case 'pick.last': {
+      const session = requireSession(args.tabId)
+      // A pick armed from the popup lands in the page, not in the queue: pull it
+      // in the first time someone asks for it.
+      const fresh = await readPick(session.tabId).catch(() => null)
+      if (fresh && !fresh.cancelled) {
+        session.picks = [...(session.picks ?? []), fresh].slice(-20)
+        session.picking = false
+        await cdp('Runtime.evaluate', { expression: 'window.__dshPickResult = null', returnByValue: true }, session.tabId).catch(() => {})
+      }
+      return { pick: session.picks?.[session.picks.length - 1] ?? null }
+    }
+    case 'pick.list': {
+      const session = requireSession(args.tabId)
+      return { picks: session.picks ?? [] }
+    }
+    case 'pick.stop': {
+      const session = requireSession(args.tabId)
+      session.picking = false
+      await stopPicker(session.tabId)
+      return { picking: false }
     }
     case 'net.list': {
       const session = requireSession(args.tabId)
