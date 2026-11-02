@@ -272,11 +272,19 @@ async function attach(tabId) {
 }
 
 async function claimTab(tabId) {
-  const tab = await chrome.tabs.get(tabId)
+  // Without an explicit id, claim whatever tab the user is looking at, so a
+  // caller that only knows "this tab" cannot silently pass NaN.
+  let id = Number(tabId)
+  if (!Number.isFinite(id)) {
+    const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+    id = active?.id
+  }
+  if (!Number.isFinite(id)) throw new Error('no tab to claim: pass tabId or open a page first')
+  const tab = await chrome.tabs.get(id)
   if (!/^https?:|^file:/.test(tab.url ?? '')) {
     throw new Error(`cannot drive ${tab.url || 'this tab'}: only http(s) and file:// pages are supported`)
   }
-  return attach(tabId)
+  return attach(id)
 }
 
 chrome.debugger.onDetach.addListener((source, reason) => {

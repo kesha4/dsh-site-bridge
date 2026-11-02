@@ -136,6 +136,11 @@ try {
   const capturedB = await evaluate(`__dshSiteBridge.handle('net.list', { tabId: ${tabs[1]} }).then((r) => r.captured)`)
   check('recording on one tab does not capture another', capturedA === 0, `tab A captured ${capturedA}`)
   check('the active recording tab captures its own call', capturedB >= 1, `tab B captured ${capturedB}`)
+
+  // A claim without an explicit id must resolve the active tab, not NaN.
+  await evaluate(`__dshSiteBridge.handle('tab.release', { tabId: ${tabs[0]} }).then(() => true)`)
+  const auto = await evaluate(`__dshSiteBridge.handle('tab.claim', {}).then((r) => r.target)`)
+  check('claim without a tab id attaches the active tab', Boolean(auto?.url?.startsWith(base)), JSON.stringify(auto))
 } catch (error) {
   check('multi-tab run completed without exceptions', false, String(error?.stack ?? error))
 } finally {

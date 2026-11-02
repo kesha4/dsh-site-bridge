@@ -13,6 +13,18 @@ three at once.
 
 _Nothing yet._
 
+## [0.5.3] — 2026-11-02
+
+### Fixed
+
+- **"Подключить ещё вкладку" did nothing.** The button sent `{type:"claim"}` without a tab id, the
+  worker tried to attach tab `NaN`, and the resulting rejection was swallowed — so the click was
+  silent. Both attach buttons now share one handler that resolves the current tab, passes its id and
+  shows any failure in the popup.
+- `claimTab()` without an id now falls back to the active tab instead of `NaN`, so no caller can
+  produce a silent no-op again. Covered by a 6th check in `test/multitab.mjs`.
+
+
 ## [0.5.2] — 2026-11-02
 
 ### Fixed

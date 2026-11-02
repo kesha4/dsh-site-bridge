@@ -239,16 +239,33 @@ $('import-file').addEventListener('change', async (event) => {
   }
 })
 
-$('claim').addEventListener('click', async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-  if (!tab?.id) return
-  const result = await send({ type: 'claim', tabId: tab.id })
-  if (!result?.ok) {
-    setNote(t('claimFailed', [String(result?.error ?? t('claimFailedUnknown'))]), true)
+async function attachCurrentTab() {
+  let tabId = null
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    tabId = tab?.id ?? null
+  } catch {
+    tabId = null
+  }
+  if (tabId == null) {
+    setNote(t('claimFailed', [t('claimFailedUnknown')]), true)
+    return
+  }
+  try {
+    const result = await send({ type: 'claim', tabId })
+    if (!result?.ok) {
+      setNote(t('claimFailed', [String(result?.error ?? t('claimFailedUnknown'))]), true)
+      return
+    }
+    setNote('')
+  } catch (error) {
+    setNote(t('claimFailed', [String(error?.message ?? error)]), true)
     return
   }
   await refresh()
-})
+}
+
+$('claim').addEventListener('click', attachCurrentTab)
 
 $('capture').addEventListener('click', async () => {
   const status = await send({ type: 'status' })
@@ -277,11 +294,7 @@ $('pick').addEventListener('click', async () => {
   await refresh()
 })
 
-$('claim-more').addEventListener('click', async () => {
-  const result = await send({ type: 'claim' })
-  if (!result?.ok && result?.error) setNote(String(result.error), true)
-  await refresh()
-})
+$('claim-more').addEventListener('click', attachCurrentTab)
 
 $('tabs-select').addEventListener('change', async (event) => {
   const tabId = Number(event.target.value)
