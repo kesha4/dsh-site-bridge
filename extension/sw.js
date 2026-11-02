@@ -254,7 +254,11 @@ async function attach(tabId, attachedBy = 'agent') {
     await evt('active', { tabId })
     return existing.target
   }
-  await chrome.debugger.attach({ tabId }, '1.3')
+  try {
+    await chrome.debugger.attach({ tabId }, '1.3')
+  } catch (error) {
+    throw new Error(`chrome.debugger.attach отказал: ${String(error?.message ?? error)}`)
+  }
   await chrome.debugger.sendCommand({ tabId }, 'Network.enable', {
     maxTotalBufferSize: 64_000_000,
     maxResourceBufferSize: 16_000_000,

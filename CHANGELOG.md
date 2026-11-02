@@ -13,6 +13,16 @@ three at once.
 
 _Nothing yet._
 
+## [0.7.5] — 2026-11-02
+
+### Changed
+
+- A failed claim now says **which call** Chrome refused: `chrome.tabs.get отказал: …` or
+  `chrome.debugger.attach отказал: …`. Both used to surface as a bare Chrome message, which made a
+  real diagnosis impossible — the app-window explanation from 0.7.3/0.7.4 was a guess and is not
+  assumed any more; the wording only mentions it when Chrome's own error looks like an extension URL.
+
+
 ## [0.7.4] — 2026-11-02
 
 ### Added
