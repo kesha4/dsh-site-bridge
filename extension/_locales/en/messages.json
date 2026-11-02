@@ -143,5 +143,11 @@
   },
   "pickArmed": {
     "message": "Click an element on the page — Enter adds a note, Esc cancels"
+  },
+  "attachAnother": {
+    "message": "Attach another tab"
+  },
+  "disconnectTab": {
+    "message": "Disconnect this tab"
   }
 }

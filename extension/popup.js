@@ -101,6 +101,7 @@ function render(status) {
   const targets = Array.isArray(status.targets) ? status.targets : []
   const tabsRow = $('tabs-row')
   const tabsSelect = $('tabs-select')
+  $('claim-more').hidden = !hasTarget
   if (targets.length > 1) {
     tabsRow.hidden = false
     tabsSelect.textContent = ''
@@ -264,6 +265,12 @@ $('pick').addEventListener('click', async () => {
     return
   }
   setNote(t('pickArmed'))
+  await refresh()
+})
+
+$('claim-more').addEventListener('click', async () => {
+  const result = await send({ type: 'claim' })
+  if (!result?.ok && result?.error) setNote(String(result.error), true)
   await refresh()
 })
 

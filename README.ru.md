@@ -123,11 +123,14 @@ Chrome покажет плашку «началась отладка этого 
 ## Использование
 
 ```text
-site_status                     → состояние моста, путь к токену, текущая вкладка
-site_tabs {action:"list"}       → вкладки; {action:"claim", tabId} привязывает одну
-site_network {action:"start"}   → начать запись, затем действуйте на странице
-site_capture {screenshot:true}  → записать пакет в рабочее пространство
-site_act {steps:"[...]"}        → click/fill/type/select/press/scroll/upload/wait/eval
+site_status                     → состояние моста, путь к спариванию, вкладки
+site_tabs {action:"list"}       → вкладки; claim/use/release/open/focus
+site_network {action:"start"}   → начать запись, затем действовать на странице
+site_capture {screenshot:true}  → записать пакет снимка в рабочее пространство
+site_snapshot {limit:40}        → интерактивные элементы с устойчивыми селекторами
+site_text {selector:"#cart"}    → видимый текст с лимитом, для проверки
+site_act {steps:"[...]"}        → click/fill/type/press/scroll/upload/wait/back/eval
+site_pick {action:"wait"}       → человек кликает элемент и пишет примечание
 site_cursor {x,y,click:true}    → виртуальный курсор, настоящее событие мыши
 site_shot {fullPage:true}       → скриншот в captures/shots/*.png
 site_inject {js:"..."}          → выполнить ваш скрипт в странице для проверки

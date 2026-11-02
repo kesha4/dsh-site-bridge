@@ -12,7 +12,7 @@ Two halves, one bridge:
 
 | Half | What it does |
 |---|---|
-| **DSH plugin** (`lib/`) | Owns the loopback bridge and exposes eight tools to the model. Writes the snapshot bundle into the session workspace. |
+| **DSH plugin** (`lib/`) | Owns the loopback bridge and exposes eleven tools to the model. Writes the snapshot bundle into the session workspace. |
 | **MV3 extension** (`extension/`) | Lives in your Chrome/Edge profile, works with your cookies, captures markup and network over CDP, drives the page with real input events. Localized: English, Русский, 中文. |
 
 Neither half is useful alone: the plugin holds the model-facing surface and the files, the extension
@@ -123,11 +123,14 @@ The popup UI follows the browser language: English, Russian and Simplified Chine
 ## Usage
 
 ```text
-site_status                     → bridge state, pairing path, current tab
-site_tabs {action:"list"}       → tabs; {action:"claim", tabId} binds one
+site_status                     → bridge state, pairing path, tabs
+site_tabs {action:"list"}       → tabs; claim/use/release/open/focus
 site_network {action:"start"}   → begin recording, then act on the page
 site_capture {screenshot:true}  → write the bundle into the workspace
-site_act {steps:"[...]"}        → click/fill/type/select/press/scroll/upload/wait/eval
+site_snapshot {limit:40}        → interactive elements with stable selectors
+site_text {selector:"#cart"}    → visible text, capped, for verification
+site_act {steps:"[...]"}        → click/fill/type/press/scroll/upload/wait/back/eval
+site_pick {action:"wait"}       → the human clicks an element and adds a note
 site_cursor {x,y,click:true}    → virtual cursor, real mouse event
 site_shot {fullPage:true}       → screenshot to captures/shots/*.png
 site_inject {js:"..."}          → run your script in the page to verify it

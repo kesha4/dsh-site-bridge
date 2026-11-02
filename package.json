@@ -1,6 +1,6 @@
 {
   "name": "dsh-site-bridge",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Chrome/Edge MV3 bridge for DeepSeek Harness: capture page markup (DOM, styles, selectors) and BFF traffic (xhr/fetch with headers and bodies) into a workspace snapshot bundle, drive the page with trusted CDP input, and verify injected scripts. Authorization never leaves the browser and is never written to disk.",
   "type": "module",
   "main": "./lib/index.js",
@@ -40,7 +40,8 @@
     "version:check": "node tools/version.mjs check",
     "version:bump": "node tools/version.mjs bump",
     "stage": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install.ps1 -StageOnly",
-    "test:picker": "node test/picker.mjs"
+    "test:picker": "node test/picker.mjs",
+    "test:ops": "node test/browser-ops.mjs"
   },
   "dsh": {
     "bundle": {

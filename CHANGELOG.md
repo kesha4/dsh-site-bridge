@@ -13,6 +13,37 @@ three at once.
 
 _Nothing yet._
 
+## [0.5.0] — 2026-11-02
+
+### Added
+
+- **`site_snapshot`** — a compact list of what a person can act on (buttons, links, fields, role-based
+  controls) with a stable selector for each, returned in the tool result instead of a file. The agent
+  can pick an element without opening the whole bundle.
+- **`site_text`** — visible text of the page or a subtree, with a hard cap and an explicit truncation
+  flag, for checking that an action produced the expected message.
+- **`wait` grew two states**: `state:"hidden"` (element gone or not visible) and `state:"settle"`
+  (no DOM mutations for `quietMs`, default 400 ms). Both matter for verification loops.
+- **`site_tabs` gained `open` and `focus`**: open a URL in a new tab and attach it in one step, or
+  bring an attached tab to the foreground.
+- **History navigation**: `goto {back:true}` and `goto {forward:true}`.
+
+### Fixed
+
+- The popup had no way to attach a second tab once one was attached. It now has a full-width
+  "Подключить ещё вкладку" button above the tab list, and the disconnect control moved into the tab
+  card as a cross — it detaches that tab, not the connection.
+- `wait` used the deep resolver's object as if it were a DOM element, so `state:"hidden"` always timed
+  out; the resolver returns `{el, ox, oy}` and the check now uses `hit.el`. Failures also report the
+  page exception instead of a bare "timed out".
+- `site_text` silently raised tiny `maxChars` values to 200; the floor is now 20.
+
+### Added (tests)
+
+- `test/browser-ops.mjs`: 11 checks in a real Chrome — compact snapshot with a selector that resolves
+  back to the element, text and truncation, settle, hidden wait, tab.open, tab.focus, history back.
+
+
 ## [0.4.1] — 2026-11-02
 
 ### Changed

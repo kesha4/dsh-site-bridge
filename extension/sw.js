@@ -665,6 +665,99 @@ async function readPick(tabId) {
   return result?.value ?? null
 }
 
+/**
+ * Injected into the page: a compact list of what a person can act on, with a
+ * stable selector for each, so the agent can pick one without reading the
+ * whole snapshot bundle.
+ */
+function compactSnapshotInPage(options) {
+  const limit = Math.max(1, Math.min(Number(options?.limit ?? 120), 400))
+  const cssEsc = (value) => (window.CSS && CSS.escape ? CSS.escape(value) : String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&'))
+  const count = (selector) => {
+    try { return document.querySelectorAll(selector).length } catch { return -1 }
+  }
+
+  function selectorFor(el) {
+    const candidates = []
+    if (el.id) candidates.push('#' + cssEsc(el.id))
+    for (const attr of ['data-testid', 'data-test', 'data-qa', 'data-cy']) {
+      const value = el.getAttribute(attr)
+      if (value) candidates.push('[' + attr + '="' + value.replace(/"/g, '\\"') + '"]')
+    }
+    if (el.getAttribute('name')) {
+      candidates.push(el.tagName.toLowerCase() + '[name="' + el.getAttribute('name').replace(/"/g, '\\"') + '"]')
+    }
+    if (el.getAttribute('aria-label')) {
+      candidates.push('[aria-label="' + el.getAttribute('aria-label').replace(/"/g, '\\"') + '"]')
+    }
+    const classes = [...el.classList].filter((name) => /^[a-zA-Z][\w-]{2,}$/.test(name)).slice(0, 2)
+    if (classes.length > 0) {
+      candidates.push(el.tagName.toLowerCase() + classes.map((name) => '.' + cssEsc(name)).join(''))
+    }
+    const parts = []
+    let current = el
+    while (current && current.nodeType === 1 && parts.length < 8) {
+      let part = current.tagName.toLowerCase()
+      if (current.id) { parts.unshift('#' + cssEsc(current.id)); break }
+      const parent = current.parentElement
+      if (parent) {
+        const siblings = [...parent.children].filter((node) => node.tagName === current.tagName)
+        if (siblings.length > 1) part += ':nth-of-type(' + (siblings.indexOf(current) + 1) + ')'
+      }
+      parts.unshift(part)
+      current = parent
+    }
+    candidates.push(parts.join(' > '))
+    const unique = candidates.find((selector) => count(selector) === 1)
+    return unique ?? candidates[candidates.length - 1]
+  }
+
+  const SELECTOR = [
+    'a[href]', 'button', 'input', 'select', 'textarea', 'summary',
+    '[role="button"]', '[role="link"]', '[role="tab"]', '[role="menuitem"]',
+    '[role="checkbox"]', '[role="radio"]', '[role="switch"]',
+    '[contenteditable=""]', '[contenteditable="true"]', '[onclick]'
+  ].join(',')
+
+  const nodes = [...document.querySelectorAll(SELECTOR)]
+  const items = []
+  for (const el of nodes) {
+    if (el.closest('#__dsh_pick_overlay__')) continue
+    const style = getComputedStyle(el)
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) continue
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 && rect.height === 0) continue
+    const label = (el.getAttribute('aria-label') ?? '') ||
+      (el.getAttribute('placeholder') ?? '') ||
+      (el.innerText ?? '').trim().replace(/\s+/g, ' ') ||
+      (el.getAttribute('title') ?? '') ||
+      (el.getAttribute('value') ?? '')
+    const item = {
+      tag: el.tagName.toLowerCase(),
+      name: String(label).slice(0, 80),
+      selector: selectorFor(el),
+      box: { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) }
+    }
+    if (el.getAttribute('type')) item.type = el.getAttribute('type')
+    if (el.getAttribute('role')) item.role = el.getAttribute('role')
+    if (el.disabled === true || el.getAttribute('aria-disabled') === 'true') item.disabled = true
+    if (el.checked === true) item.checked = true
+    if (typeof el.value === 'string' && el.value !== '') item.value = el.value.slice(0, 60)
+    if (el.href && el.tagName === 'A') item.href = String(el.href).slice(0, 200)
+    items.push(item)
+    if (items.length >= limit) break
+  }
+
+  return {
+    url: location.href,
+    title: document.title,
+    total: nodes.length,
+    returned: items.length,
+    truncated: nodes.length > items.length,
+    items
+  }
+}
+
 /* ------------------------------------------------------------------ cursor */
 
 const CURSOR_ID = '__dsh_site_bridge_cursor__'
@@ -978,6 +1071,13 @@ async function runStep(op, step) {
       return { uploaded: files.length, to: step.selector }
     }
     case 'goto': {
+      if (step.back === true || step.forward === true) {
+        await cdp('Runtime.evaluate', {
+          expression: step.back === true ? 'history.back(); true' : 'history.forward(); true',
+          returnByValue: true
+        })
+        return { navigated: step.back === true ? 'back' : 'forward' }
+      }
       await cdp('Page.navigate', { url: String(step.url) })
       return { navigated: step.url }
     }
@@ -990,19 +1090,53 @@ async function runStep(op, step) {
         await sleep(Math.min(Number(step.ms), 60000))
         return { waitedMs: Number(step.ms) }
       }
-      const deadline = Date.now() + Math.min(Number(step.timeoutMs ?? 15000), 60000)
-      while (Date.now() < deadline) {
+      if (step.state === 'settle') {
+        const quietMs = Math.min(Number(step.quietMs ?? 400), 5000)
+        const budget = Math.min(Number(step.timeoutMs ?? 15000), 60000)
         const { result } = await cdp('Runtime.evaluate', {
+          expression: `new Promise((resolve) => {
+            let timer = null;
+            const done = () => { observer.disconnect(); resolve(true); };
+            const restart = () => { clearTimeout(timer); timer = setTimeout(done, ${quietMs}); };
+            const observer = new MutationObserver(restart);
+            observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
+            restart();
+            setTimeout(() => { observer.disconnect(); resolve(false); }, ${budget});
+          })`,
+          awaitPromise: true,
+          returnByValue: true
+        })
+        if (result?.value !== true) throw new Error(`page did not settle within ${budget} ms`)
+        return { settled: true, quietMs }
+      }
+      const wantHidden = step.state === 'hidden'
+      const deadline = Date.now() + Math.min(Number(step.timeoutMs ?? 15000), 60000)
+      let lastValue = null
+      while (Date.now() < deadline) {
+        const { result, exceptionDetails } = await cdp('Runtime.evaluate', {
           expression: `(() => {
             ${PAGE_RESOLVER}
-            return Boolean(__dshDeep(${JSON.stringify(step.selector)}));
+            const hit = __dshDeep(${JSON.stringify(step.selector)});
+            if (!hit || !hit.el) return ${wantHidden ? 'true' : 'false'};
+            if (${wantHidden ? 'true' : 'false'}) {
+              const el = hit.el;
+              const style = getComputedStyle(el);
+              const rect = el.getBoundingClientRect();
+              return style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0 ||
+                (rect.width === 0 && rect.height === 0);
+            }
+            return true;
           })()`,
           returnByValue: true
         })
-        if (result?.value === true) return { appeared: step.selector }
+        if (exceptionDetails) throw new Error(`не удалось проверить ${step.selector}: ${exceptionDetails.exception?.description ?? exceptionDetails.text ?? 'ошибка в странице'}`)
+        lastValue = result?.value
+        if (lastValue === true) {
+          return wantHidden ? { hidden: step.selector } : { appeared: step.selector }
+        }
         await sleep(200)
       }
-      throw new Error(`timed out waiting for ${step.selector}`)
+      throw new Error(`timed out waiting for ${step.selector} to be ${wantHidden ? 'hidden' : 'visible'} (last value: ${JSON.stringify(lastValue)})`)
     }
     case 'eval': {
       const { result, exceptionDetails } = await cdp('Runtime.evaluate', {
@@ -1352,6 +1486,48 @@ async function dispatch(op, args) {
     case 'tab.info': {
       const active = activeSession()
       return { target: active?.target ?? null, attached: state.activeTabId, tabs: [...state.sessions.keys()] }
+    }
+    case 'tab.open': {
+      const tab = await chrome.tabs.create({ url: String(args.url ?? 'about:blank'), active: args.active !== false })
+      await attach(tab.id)
+      return { target: state.sessions.get(tab.id)?.target ?? { id: tab.id, url: tab.url, title: tab.title } }
+    }
+    case 'tab.focus': {
+      const session = requireSession(args.tabId)
+      await chrome.tabs.update(session.tabId, { active: true })
+      const tab = await chrome.tabs.get(session.tabId)
+      if (tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {})
+      return { focused: session.tabId }
+    }
+    case 'snapshot.compact': {
+      const session = requireSession(args.tabId)
+      const { result } = await cdp('Runtime.evaluate', {
+        expression: `(${compactSnapshotInPage.toString()})(${JSON.stringify({ limit: args.limit })})`,
+        returnByValue: true
+      }, session.tabId)
+      return result?.value ?? { items: [], total: 0, returned: 0, truncated: false }
+    }
+    case 'text.get': {
+      const session = requireSession(args.tabId)
+      const maxChars = Math.max(20, Math.min(Number(args.maxChars ?? 8000), 40000))
+      const root = args.selector ? `__dshDeep(${JSON.stringify(String(args.selector))})` : 'document.body'
+      const { result } = await cdp('Runtime.evaluate', {
+        expression: `(() => {
+          ${PAGE_RESOLVER}
+          const root = ${root};
+          if (!root) return { error: 'element not found' };
+          const text = (root.innerText ?? root.textContent ?? '').replace(/\\n{3,}/g, '\\n\\n').trim();
+          return {
+            text: text.slice(0, ${maxChars}),
+            chars: text.length,
+            truncated: text.length > ${maxChars},
+            url: location.href,
+            title: document.title
+          };
+        })()`,
+        returnByValue: true
+      }, session.tabId)
+      return result?.value ?? { text: '', chars: 0, truncated: false }
     }
     case 'net.start': {
       const session = requireSession(args.tabId)

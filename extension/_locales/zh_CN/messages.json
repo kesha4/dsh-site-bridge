@@ -143,5 +143,11 @@
   },
   "pickArmed": {
     "message": "点击页面上的元素 — Enter 添加备注，Esc 取消"
+  },
+  "attachAnother": {
+    "message": "连接另一个标签页"
+  },
+  "disconnectTab": {
+    "message": "断开此标签页"
   }
 }

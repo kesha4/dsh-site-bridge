@@ -10,12 +10,12 @@
 #   - real, working code (not a placeholder)                              ✔
 #   - repository at least 1 day old                                       ⏳ created 2026-11-01, check before submitting
 #   - dsh-plugin topic on the repository                                  — add with gh
-#   - description states only what the code does                          ✔ (8 tools, MV3 extension)
+#   - description states only what the code does                          ✔ (11 tools, MV3 extension)
 
 url: https://github.com/kesha4/dsh-site-bridge
 name: kesha4/dsh-site-bridge
 category: browser
 icon: https://raw.githubusercontent.com/kesha4/dsh-site-bridge/main/extension/icons/icon-128.png
 description:
-  en: Browser bridge for DeepSeek Harness — captures page markup and BFF traffic into a workspace bundle, drives pages with trusted CDP input, and verifies injected scripts; ships a DSH plugin with eight tools and an MV3 extension that uses the browser's own session.
-  zh: 面向 DeepSeek Harness 的浏览器桥接——把页面结构与 BFF 流量抓取为工作区快照包，用可信 CDP 输入驱动页面并验证注入脚本；包含带八个工具的 DSH 插件与使用浏览器自身会话的 MV3 扩展。
+  en: Browser bridge for DeepSeek Harness — captures page markup and BFF traffic into a workspace bundle, drives pages with trusted CDP input, and verifies injected scripts; ships a DSH plugin with eleven tools and an MV3 extension that uses the browser's own session.
+  zh: 面向 DeepSeek Harness 的浏览器桥接——把页面结构与 BFF 流量抓取为工作区快照包，用可信 CDP 输入驱动页面并验证注入脚本；包含带十一个工具的 DSH 插件与使用浏览器自身会话的 MV3 扩展。

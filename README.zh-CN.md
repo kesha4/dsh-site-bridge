@@ -102,14 +102,17 @@ Chrome 会显示「已开始调试此浏览器」提示条：这正是全部功�
 ## 用法
 
 ```text
-site_status                     → 网桥状态、令牌路径、当前标签页
-site_tabs {action:"list"}       → 标签页列表；{action:"claim", tabId} 绑定其一
+site_status                     → 网桥状态、配对路径、标签页
+site_tabs {action:"list"}       → 标签页；claim/use/release/open/focus
 site_network {action:"start"}   → 开始录制，然后在页面上操作
 site_capture {screenshot:true}  → 把快照包写入工作区
-site_act {steps:"[...]"}        → click/fill/type/select/press/scroll/upload/wait/eval
+site_snapshot {limit:40}        → 带稳定选择器的可交互元素
+site_text {selector:"#cart"}    → 可见文本（带上限），用于验证
+site_act {steps:"[...]"}        → click/fill/type/press/scroll/upload/wait/back/eval
+site_pick {action:"wait"}       → 由人点击元素并写备注
 site_cursor {x,y,click:true}    → 虚拟光标，真实鼠标事件
-site_shot {fullPage:true}       → 截图到 captures/shots/*.png
-site_inject {js:"..."}          → 在页面中执行你的脚本以验证
+site_shot {fullPage:true}       → 截图保存到 captures/shots/*.png
+site_inject {js:"..."}          → 在页面里执行你的脚本以验证
 ```
 
 编写页内扩展的典型循环：
