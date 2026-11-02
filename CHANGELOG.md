@@ -13,6 +13,19 @@ three at once.
 
 _Nothing yet._
 
+## [0.6.1] — 2026-11-02
+
+### Changed
+
+- The tab list no longer marks one tab as active. Every block shows its own request count and a dot
+  while that tab records; "Запись API" toggles recording for **all** attached tabs and the counter
+  sums them. Tools address any attached tab through their optional `tab` argument, so there is no
+  primary tab to switch.
+- Blocks are informational: they are not clickable any more, only the cross detaches a tab. The
+  worker keeps an internal default for calls that omit `tab` (the first attached tab), which is a
+  convenience, not a restriction.
+
+
 ## [0.6.0] — 2026-11-02
 
 ### Changed

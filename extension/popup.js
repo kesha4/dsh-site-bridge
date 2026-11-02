@@ -95,7 +95,6 @@ function render(status) {
   // One block per attached tab: title, address and its own detach cross. The
   // list scrolls after three blocks so the popup keeps its height.
   const targets = Array.isArray(status.targets) ? status.targets : []
-  const activeId = status.activeTabId ?? status.target?.id ?? null
   target.classList.toggle('empty', targets.length === 0)
   target.hidden = targets.length > 0
 
@@ -104,7 +103,7 @@ function render(status) {
   list.textContent = ''
   for (const item of targets) {
     const row = document.createElement('div')
-    row.className = item.id === activeId ? 'tab-item active' : 'tab-item'
+    row.className = 'tab-item'
     row.dataset.id = String(item.id)
     row.title = item.url || ''
 
@@ -124,7 +123,16 @@ function render(status) {
     remove.title = t('disconnectTab')
     remove.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
 
-    row.append(body, remove)
+    // Every tab carries its own numbers: nothing here is "the" tab.
+    const meta = document.createElement('span')
+    meta.className = 'tab-meta'
+    if (item.recording) {
+      const dot = document.createElement('i')
+      dot.className = 'tab-dot'
+      meta.append(dot)
+    }
+    meta.append(document.createTextNode(String(item.captured ?? 0)))
+    row.append(body, meta, remove)
     list.append(row)
   }
 
@@ -293,10 +301,6 @@ $('tabs-list').addEventListener('click', async (event) => {
     await refresh()
     return
   }
-  const row = event.target.closest('.tab-item')
-  if (!row || row.classList.contains('active')) return
-  await send({ type: 'use', tabId: Number(row.dataset.id) })
-  await refresh()
 })
 
 $('pick').addEventListener('click', async () => {

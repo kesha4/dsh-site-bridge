@@ -193,8 +193,10 @@ async function handleMessageInner(message) {
         recording: session.recording,
         captured: session.entries.length
       })),
-      recording: active?.recording ?? false,
-      captured: active?.entries.length ?? 0,
+      // Aggregates: the popup shows every attached tab, so "capture on" means
+      // "at least one is recording" and the counter is the sum.
+      recording: [...state.sessions.values()].some((session) => session.recording),
+      captured: [...state.sessions.values()].reduce((sum, session) => sum + session.entries.length, 0),
       picking: active?.picking === true,
       picks: active?.picks?.length ?? 0
     }
@@ -216,8 +218,13 @@ async function handleMessageInner(message) {
     return { ok: true }
   }
   if (message?.type === 'toggle-capture') {
+    const on = message.on === true
+    if (message.tabId == null || message.tabId === '') {
+      for (const session of state.sessions.values()) await setRecording(session, on)
+      return { ok: true, recording: on, tabs: state.sessions.size }
+    }
     const session = requireSession(message.tabId)
-    return { ok: true, recording: await setRecording(session, message.on === true) }
+    return { ok: true, recording: await setRecording(session, on) }
   }
   return { ok: false, error: `unknown message ${message?.type}` }
 }
