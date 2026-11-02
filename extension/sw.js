@@ -1613,6 +1613,7 @@ async function dispatch(op, args) {
       const windows = await chrome.windows.getAll({}).catch(() => [])
       const window = windows.find((item) => item.id === info?.windowId) ?? null
       const targets = await chrome.debugger.getTargets().catch(() => [])
+      const frames = await chrome.webNavigation.getAllFrames({ tabId: id }).catch(() => null)
       const mine = targets
         .filter((target) => target.tabId === id)
         .map((target) => ({
@@ -1638,6 +1639,13 @@ async function dispatch(op, args) {
           : { error: info?.error },
         window: window ? { id: window.id, type: window.type, state: window.state } : null,
         targets: mine,
+        frames: Array.isArray(frames)
+          ? frames.map((frame) => ({
+              frameId: frame.frameId,
+              parentFrameId: frame.parentFrameId,
+              url: String(frame.url ?? '').slice(0, 200)
+            }))
+          : null,
         targetCount: targets.length
       }
     }

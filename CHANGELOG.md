@@ -13,6 +13,16 @@ three at once.
 
 _Nothing yet._
 
+## [0.8.2] — 2026-11-02
+
+### Added
+
+- `site_tabs {action:"diagnose"}` now lists the tab's frames (`webNavigation.getAllFrames`): frame id,
+  parent and URL. A refused `chrome.debugger.attach` names another extension's `chrome-extension://`
+  frame, and this makes the culprit identifiable by id instead of guessed at.
+- The extension asks for the `webNavigation` permission, used only by that diagnostic.
+
+
 ## [0.8.1] — 2026-11-02
 
 ### Fixed
