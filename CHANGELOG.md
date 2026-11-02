@@ -13,6 +13,15 @@ three at once.
 
 _Nothing yet._
 
+## [0.5.1] — 2026-11-02
+
+### Added
+
+- Plugin icon: `icon.svg` at the package root and `"icon": "./icon.svg"` in `package.json`, the
+  convention the harness uses to show a plugin's own mark in Settings → Plugins. Without it the list
+  fell back to the default glyph.
+
+
 ## [0.5.0] — 2026-11-02
 
 ### Added

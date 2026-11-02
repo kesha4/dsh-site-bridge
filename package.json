@@ -1,7 +1,8 @@
 {
   "name": "dsh-site-bridge",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Chrome/Edge MV3 bridge for DeepSeek Harness: capture page markup (DOM, styles, selectors) and BFF traffic (xhr/fetch with headers and bodies) into a workspace snapshot bundle, drive the page with trusted CDP input, and verify injected scripts. Authorization never leaves the browser and is never written to disk.",
+  "icon": "./icon.svg",
   "type": "module",
   "main": "./lib/index.js",
   "exports": {
@@ -15,7 +16,8 @@
     "docs",
     "scripts",
     "tools",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "icon.svg"
   ],
   "keywords": [
     "deepseek-harness",
