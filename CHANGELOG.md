@@ -13,6 +13,18 @@ three at once.
 
 _Nothing yet._
 
+## [0.8.0] — 2026-11-02
+
+### Added
+
+- `site_tabs {action:"diagnose", tabId}` — asks Chrome directly what it thinks a tab is: the full tab
+  record (`url`, `pendingUrl`, `status`, `discarded`, window), the window type, and every debugger
+  target Chrome sees for that tab (`type`, `url`, `attached`). Read-only.
+  It exists because a plain `mail.google.com` tab was refused by `chrome.debugger.attach` with
+  "Cannot access a chrome-extension:// URL of different extension", and guessing the cause twice was
+  twice too many.
+
+
 ## [0.7.5] — 2026-11-02
 
 ### Changed

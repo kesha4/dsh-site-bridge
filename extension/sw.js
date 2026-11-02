@@ -1585,6 +1585,41 @@ async function dispatch(op, args) {
       if (tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {})
       return { focused: session.tabId }
     }
+    case 'tab.diagnose': {
+      const id = Number(args.tabId)
+      if (!Number.isFinite(id)) throw new Error('нужен tabId')
+      const info = await chrome.tabs.get(id).catch((error) => ({ error: String(error?.message ?? error) }))
+      const windows = await chrome.windows.getAll({}).catch(() => [])
+      const window = windows.find((item) => item.id === info?.windowId) ?? null
+      const targets = await chrome.debugger.getTargets().catch(() => [])
+      const mine = targets
+        .filter((target) => target.tabId === id)
+        .map((target) => ({
+          id: target.id,
+          type: target.type,
+          url: String(target.url ?? '').slice(0, 300),
+          title: String(target.title ?? '').slice(0, 120),
+          attached: target.attached === true
+        }))
+      return {
+        tab: info
+          ? {
+              id: info.id,
+              url: String(info.url ?? '').slice(0, 300),
+              pendingUrl: String(info.pendingUrl ?? '').slice(0, 300),
+              title: String(info.title ?? '').slice(0, 120),
+              status: info.status,
+              active: info.active,
+              discarded: info.discarded,
+              windowId: info.windowId,
+              index: info.index
+            }
+          : { error: info?.error },
+        window: window ? { id: window.id, type: window.type, state: window.state } : null,
+        targets: mine,
+        targetCount: targets.length
+      }
+    }
     case 'snapshot.compact': {
       const session = requireSession(args.tabId)
       const { result } = await cdp('Runtime.evaluate', {
