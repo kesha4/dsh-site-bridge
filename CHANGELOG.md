@@ -13,6 +13,15 @@ three at once.
 
 _Nothing yet._
 
+## [0.6.0] — 2026-11-02
+
+### Changed
+
+- The popup lists attached tabs as blocks instead of a dropdown: title, address and a cross per tab.
+  The active tab is outlined, clicking a block switches to it, the cross detaches that tab. The list
+  scrolls on its own and fits three blocks without scrolling, so the popup keeps its height.
+
+
 ## [0.5.3] — 2026-11-02
 
 ### Fixed

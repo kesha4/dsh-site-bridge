@@ -21,6 +21,17 @@ const chromePath = process.env.CHROME_PATH ?? 'C:\\Program Files\\Google\\Chrome
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
 
 const statuses = {
+  many: {
+    ok: true, configured: true, connected: true, port: 47321, recording: true, captured: 7, selfTabId: 9,
+    activeTabId: 1,
+    target: { id: 1, title: 'Example Store — Products', url: 'https://shop.example/products' },
+    targets: [
+      { id: 1, title: 'Example Store — Products', url: 'https://shop.example/products', recording: true, captured: 7 },
+      { id: 2, title: 'Example Store — Cart', url: 'https://shop.example/cart', recording: false, captured: 0 },
+      { id: 3, title: 'Example Store — Checkout', url: 'https://shop.example/checkout', recording: false, captured: 0 },
+      { id: 4, title: 'Example Store — Orders', url: 'https://shop.example/orders', recording: false, captured: 0 }
+    ]
+  },
   'connected-one': {
     ok: true, configured: true, connected: true, port: 47321, recording: false, captured: 0, selfTabId: 1,
     activeTabId: 1,

@@ -59,7 +59,6 @@ function render(status) {
   const dot = $('dot')
   const text = $('connection-text')
   const claim = $('claim')
-  const release = $('release')
   const capture = $('capture')
   const target = $('target-block')
 
@@ -93,35 +92,48 @@ function render(status) {
     text.textContent = t('statusNotConfigured')
   }
 
-  target.classList.toggle('empty', !hasTarget)
-  $('target-title').textContent = hasTarget ? status.target.title || status.target.url : t('targetNoneTitle')
-  $('target-url').textContent = hasTarget ? String(status.target.url || '') : t('targetNoneUrl')
-
-  // Several attached tabs: a compact switcher, nothing else changes.
+  // One block per attached tab: title, address and its own detach cross. The
+  // list scrolls after three blocks so the popup keeps its height.
   const targets = Array.isArray(status.targets) ? status.targets : []
-  const tabsRow = $('tabs-row')
-  const tabsSelect = $('tabs-select')
-  const selfAttached = selfTabId != null && targets.some((item) => item.id === selfTabId)
-  $('claim-more').hidden = !hasTarget || selfAttached
-  if (targets.length > 1) {
-    tabsRow.hidden = false
-    tabsSelect.textContent = ''
-    for (const item of targets) {
-      const option = document.createElement('option')
-      option.value = String(item.id)
-      option.textContent = item.title || item.url || `#${item.id}`
-      option.selected = item.id === status.activeTabId
-      tabsSelect.appendChild(option)
-    }
-  } else {
-    tabsRow.hidden = true
+  const activeId = status.activeTabId ?? status.target?.id ?? null
+  target.classList.toggle('empty', targets.length === 0)
+  target.hidden = targets.length > 0
+
+  const list = $('tabs-list')
+  list.hidden = targets.length === 0
+  list.textContent = ''
+  for (const item of targets) {
+    const row = document.createElement('div')
+    row.className = item.id === activeId ? 'tab-item active' : 'tab-item'
+    row.dataset.id = String(item.id)
+    row.title = item.url || ''
+
+    const body = document.createElement('div')
+    body.className = 'tab-item-text'
+    const title = document.createElement('div')
+    title.className = 'tab-item-title'
+    title.textContent = item.title || item.url || `#${item.id}`
+    const address = document.createElement('div')
+    address.className = 'tab-item-url'
+    address.textContent = item.url || ''
+    body.append(title, address)
+
+    const remove = document.createElement('button')
+    remove.className = 'icon'
+    remove.dataset.remove = String(item.id)
+    remove.title = t('disconnectTab')
+    remove.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+
+    row.append(body, remove)
+    list.append(row)
   }
 
   // Nothing to claim once a tab is bound: the action would be a no-op.
-  claim.hidden = hasTarget
-  claim.disabled = !connected || hasTarget
-  claim.textContent = hasTarget ? t('tabConnected') : t('connectTab')
-  release.hidden = !hasTarget
+  const selfAttached = selfTabId != null && targets.some((item) => item.id === selfTabId)
+  claim.hidden = targets.length > 0
+  claim.disabled = !connected || targets.length > 0
+  claim.textContent = t('connectTab')
+  $('claim-more').hidden = targets.length === 0 || selfAttached
 
   const pick = $('pick')
   pick.classList.toggle('active', status.picking === true)
@@ -273,8 +285,17 @@ $('capture').addEventListener('click', async () => {
   await refresh()
 })
 
-$('release').addEventListener('click', async () => {
-  await send({ type: 'release' })
+$('tabs-list').addEventListener('click', async (event) => {
+  const remove = event.target.closest('[data-remove]')
+  if (remove) {
+    event.stopPropagation()
+    await send({ type: 'release', tabId: Number(remove.dataset.remove) })
+    await refresh()
+    return
+  }
+  const row = event.target.closest('.tab-item')
+  if (!row || row.classList.contains('active')) return
+  await send({ type: 'use', tabId: Number(row.dataset.id) })
   await refresh()
 })
 
@@ -296,11 +317,6 @@ $('pick').addEventListener('click', async () => {
 
 $('claim-more').addEventListener('click', attachCurrentTab)
 
-$('tabs-select').addEventListener('change', async (event) => {
-  const tabId = Number(event.target.value)
-  if (!Number.isFinite(tabId)) return
-  await send({ type: 'use', tabId })
-  await refresh()
-})
+
 
 void init()

@@ -94,6 +94,23 @@
       button.link:hover:not(:disabled) { color: #7e98ff; background: none; }
 
       .target-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+      .tabs-list {
+        display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto;
+        margin-top: 8px; scrollbar-width: thin; scrollbar-color: #3a4150 transparent;
+      }
+      .tabs-list::-webkit-scrollbar { width: 6px; }
+      .tabs-list::-webkit-scrollbar-thumb { background: #3a4150; border-radius: 3px; }
+      .tabs-list::-webkit-scrollbar-track { background: transparent; }
+      .tab-item {
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        padding: 6px 8px; background: #15181e; border: 1px solid var(--line);
+        border-radius: 7px; cursor: pointer; min-height: 44px;
+      }
+      .tab-item:hover { border-color: #3a4150; }
+      .tab-item.active { border-color: var(--accent); background: #1a1f2c; }
+      .tab-item-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+      .tab-item-title { font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tab-item-url { color: var(--muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .capture-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
       .capture-row button { padding: 5px 9px; font-size: 11.5px; }
       select {
@@ -148,12 +165,9 @@
 
       <div class="target empty" id="target-block">
         <div class="target-text">
-          <div class="target-title" id="target-title" data-i18n="targetNoneTitle">Вкладка не подключена</div>
-          <div class="target-url" id="target-url" data-i18n="targetNoneUrl">Откройте нужную страницу и подключите её</div>
+          <div class="target-title" data-i18n="targetNoneTitle">Вкладка не подключена</div>
+          <div class="target-url" data-i18n="targetNoneUrl">Откройте нужную страницу и подключите её</div>
         </div>
-        <button class="icon" id="release" hidden data-i18n-title="disconnectTab" title="Отключить вкладку">
-          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2 L10 10 M10 2 L2 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        </button>
       </div>
 
       <button class="primary" id="claim" data-i18n="connectTab">Подключить эту вкладку</button>
@@ -161,10 +175,7 @@
 
       <button class="primary" id="claim-more" hidden data-i18n="attachAnother">Подключить ещё вкладку</button>
 
-      <div class="capture-row" id="tabs-row" hidden>
-        <span class="muted" data-i18n="tabsLabel">Вкладки</span>
-        <select id="tabs-select"></select>
-      </div>
+      <div class="tabs-list" id="tabs-list" hidden></div>
 
       <div class="capture-row">
         <span class="muted" id="captured">0</span>
