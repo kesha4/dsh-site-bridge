@@ -13,6 +13,29 @@ three at once.
 
 _Nothing yet._
 
+## [0.7.4] — 2026-11-02
+
+### Added
+
+- `site_tabs {action:"list"}` marks tabs that live in a non-normal window (`[окно: app, недоступно]`).
+  A tab can be listed with a normal https URL and still be unreadable when it belongs to another
+  extension's app window — the marker makes that visible instead of guessing, and `tabs.list` now
+  carries `windowType` and `readable` per tab.
+
+
+## [0.7.3] — 2026-11-02
+
+### Fixed
+
+- **The extension reported version 0.1.0 forever.** `EXT_VERSION` was a hardcoded literal that nobody
+  updated, so every diagnosis of "is the new build loaded?" was guesswork. It now reads
+  `chrome.runtime.getManifest().version`.
+- A tab that Chrome refuses to read (an app window of another extension) produced its internal
+  "Cannot access a chrome-extension:// URL of different extension". The message now says the tab looks
+  like another extension's app window and suggests opening it as a normal tab; the popup also probes
+  candidate tabs with `chrome.tabs.get` and skips the unreadable ones instead of offering them.
+
+
 ## [0.7.2] — 2026-11-02
 
 ### Fixed

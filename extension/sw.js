@@ -15,7 +15,7 @@
  * host, which redacts and never writes it to disk.
  */
 
-const EXT_VERSION = '0.1.0'
+const EXT_VERSION = chrome.runtime.getManifest().version
 const NET_CAP = 600
 // Bodies are kept up to this size in the worker, then marked as truncated.
 // Raise it per machine with chrome.storage.local.set({ maxBodyChars }): the
@@ -297,7 +297,11 @@ async function claimTab(tabId, attachedBy = 'agent') {
   } catch (error) {
     // Chrome refuses to read pages of other extensions and its own service
     // pages; say that in words a person can act on.
-    throw new Error(`эту вкладку нельзя подключить: ${String(error?.message ?? error)}`)
+    const detail = String(error?.message ?? error)
+    const hint = /chrome-extension:\/\//.test(detail)
+      ? ' Похоже, вкладка открыта в окне-приложении другого расширения — откройте её как обычную вкладку.'
+      : ''
+    throw new Error(`эту вкладку нельзя подключить: ${detail}${hint}`)
   }
   if (!/^https?:|^file:/.test(tab.url ?? '')) {
     const scheme = String(tab.url ?? '').split(':')[0] || 'неизвестная схема'
@@ -1502,17 +1506,26 @@ async function dispatch(op, args) {
       return { ok: true, version: EXT_VERSION }
     case 'tabs.list': {
       const tabs = await chrome.tabs.query({})
+      // Window type explains why a tab can be listed but not read: app windows
+      // belong to another extension, and Chrome refuses access to them.
+      const windows = await chrome.windows.getAll({}).catch(() => [])
+      const windowType = new Map(windows.map((window) => [window.id, window.type ?? 'normal']))
       const list = tabs
         .filter((tab) => /^https?:|^file:/.test(tab.url ?? ''))
-        .map((tab) => ({
-          id: tab.id,
-          title: tab.title,
-          url: tab.url,
-          active: tab.active,
-          windowId: tab.windowId,
-          attached: state.sessions.has(tab.id),
-          target: tab.id === state.activeTabId
-        }))
+        .map((tab) => {
+          const type = windowType.get(tab.windowId) ?? 'unknown'
+          return {
+            id: tab.id,
+            title: tab.title,
+            url: tab.url,
+            active: tab.active,
+            windowId: tab.windowId,
+            windowType: type,
+            readable: type === 'normal',
+            attached: state.sessions.has(tab.id),
+            target: tab.id === state.activeTabId
+          }
+        })
       await evt('tabs', { tabs: list })
       return { tabs: list }
     }

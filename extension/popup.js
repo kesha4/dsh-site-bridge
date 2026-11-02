@@ -206,12 +206,23 @@ async function currentBrowserTab() {
     { active: true, currentWindow: true }
   ]
   for (const scope of scopes) {
+    let tabs = []
     try {
-      const tabs = await chrome.tabs.query(scope)
-      if (!Array.isArray(tabs) || tabs.length === 0) continue
-      return tabs.find((tab) => scheme(tab) === 'web') ?? tabs[0]
+      tabs = await chrome.tabs.query(scope)
     } catch {
-      // try the next scope
+      continue
+    }
+    if (!Array.isArray(tabs) || tabs.length === 0) continue
+    const ordered = [...tabs.filter((tab) => scheme(tab) === 'web'), ...tabs.filter((tab) => scheme(tab) !== 'web')]
+    for (const tab of ordered) {
+      // Ask Chrome whether this tab is readable at all: tabs in app windows of
+      // other extensions are listed but cannot be touched.
+      try {
+        await chrome.tabs.get(tab.id)
+        return tab
+      } catch {
+        // not ours to read — try the next candidate
+      }
     }
   }
   return null
