@@ -197,6 +197,14 @@ instead of `<all_urls>` and does not inject a content script into every page. Th
 step and Chrome's debugging banner. In exchange the permission is granted per tab, for the duration
 of a session, and requests are read where they are made — no credential is copied out of the browser.
 
+### Consent
+
+Attaching a tab is a decision for the person by default. The agent may list tabs freely, but
+`site_tabs {action:"claim"}` on a tab the user has not attached is refused unless the call carries
+`confirmed: true` — and the refusal names the tab, so the agent knows what to ask about. Closing a tab
+the user attached needs the same confirmation. This is a rule inside the plugin, not an OS permission:
+it makes the agent stop and ask instead of quietly widening what it can reach.
+
 ## Limitations
 
 Cross-origin iframes, closed shadow roots and body size caps are analysed in

@@ -166,3 +166,22 @@ test('an unanswered command times out instead of hanging forever', async () => {
     await bridge.close()
   }
 })
+
+test('target events keep the fields the extension adds', async () => {
+  const bridge = await startBridge()
+  try {
+    await fetch(`http://127.0.0.1:${bridge.port}/v1/evt`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        kind: 'target',
+        tab: { id: 4, url: 'https://a.test/', title: 'A', attachedBy: 'user' }
+      })
+    })
+    const target = bridge.state().targets.find((item) => item.id === 4)
+    assert.ok(target, 'target should be stored')
+    assert.equal(target.attachedBy, 'user')
+  } finally {
+    await bridge.close()
+  }
+})

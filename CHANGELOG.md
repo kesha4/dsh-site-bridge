@@ -13,6 +13,24 @@ three at once.
 
 _Nothing yet._
 
+## [0.7.0] — 2026-11-02
+
+### Added
+
+- **Consent rule for tabs the user did not attach.** `site_tabs {action:"claim"}` now refuses with a
+  message naming the tab unless the call carries `confirmed: true`; closing a tab the user attached
+  needs the same confirmation. The worker records who attached each tab (`attachedBy: "user" | "agent"`)
+  so the rule can tell a human gesture from an agent one, and the refusal text gives the agent what it
+  needs to ask the question.
+- README (en/ru/zh): a `Consent` section explaining that this is a plugin rule, not an OS permission.
+
+### Fixed
+
+- The bridge rebuilt target objects field by field, dropping `attachedBy`; it now keeps the fields the
+  extension sends. Covered by a new check in `test/bridge.test.mjs` (9 checks) and two in
+  `test/plugin.test.mjs`.
+
+
 ## [0.6.4] — 2026-11-02
 
 ### Changed

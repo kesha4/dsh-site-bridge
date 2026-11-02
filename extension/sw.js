@@ -165,7 +165,7 @@ function handleMessage(message) {
 
 async function handleMessageInner(message) {
   if (message?.type === 'claim') {
-    const target = await claimTab(message.tabId)
+    const target = await claimTab(message.tabId, 'user')
     return { ok: true, target }
   }
   if (message?.type === 'use') {
@@ -247,7 +247,7 @@ async function detach(tabId) {
   await chrome.debugger.detach({ tabId: session.tabId }).catch(() => {})
 }
 
-async function attach(tabId) {
+async function attach(tabId, attachedBy = 'agent') {
   const existing = state.sessions.get(tabId)
   if (existing) {
     state.activeTabId = tabId
@@ -265,7 +265,8 @@ async function attach(tabId) {
   const tab = await chrome.tabs.get(tabId)
   const session = {
     tabId,
-    target: { id: tab.id, url: tab.url, title: tab.title },
+    attachedBy,
+    target: { id: tab.id, url: tab.url, title: tab.title, attachedBy },
     recording: false,
     entries: [],
     picking: false,
@@ -278,7 +279,7 @@ async function attach(tabId) {
   return session.target
 }
 
-async function claimTab(tabId) {
+async function claimTab(tabId, attachedBy = 'agent') {
   // Without an explicit id, claim whatever tab the user is looking at, so a
   // caller that only knows "this tab" cannot silently pass NaN.
   let id = Number(tabId)
@@ -291,13 +292,13 @@ async function claimTab(tabId) {
   if (!/^https?:|^file:/.test(tab.url ?? '')) {
     throw new Error(`cannot drive ${tab.url || 'this tab'}: only http(s) and file:// pages are supported`)
   }
-  return attach(id)
+  return attach(id, attachedBy)
 }
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   const session = state.sessions.get(tabId)
   if (!session) return
-  const next = { id: tab.id, url: tab.url, title: tab.title }
+  const next = { id: tab.id, url: tab.url, title: tab.title, attachedBy: session.attachedBy }
   if (next.title === session.target.title && next.url === session.target.url) return
   session.target = next
   void evt('target', { tab: next, tabId })
@@ -1530,7 +1531,7 @@ async function dispatch(op, args) {
     }
     case 'tab.open': {
       const tab = await chrome.tabs.create({ url: String(args.url ?? 'about:blank'), active: args.active !== false })
-      await attach(tab.id)
+      await attach(tab.id, 'agent')
       // A fresh tab has no title yet: wait for the load so the caller gets a
       // target it can show, instead of an empty string.
       const deadline = Date.now() + Math.min(Number(args.waitMs ?? 10000), 30000)
@@ -1542,7 +1543,7 @@ async function dispatch(op, args) {
       }
       const session = state.sessions.get(tab.id)
       if (session) {
-        session.target = { id: info.id, url: info.url, title: info.title }
+        session.target = { id: info.id, url: info.url, title: info.title, attachedBy: session.attachedBy }
         await evt('target', { tab: session.target, tabId: tab.id })
       }
       return { target: session?.target ?? { id: tab.id, url: tab.url, title: tab.title } }

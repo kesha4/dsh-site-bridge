@@ -247,6 +247,25 @@ test('host half registers every tool and drives the bridge', async (t) => {
   assert.equal(scoped.ok, true, scoped.summary)
   assert.equal(fakeState.lastAct?.tabId, 2, `worker must receive tabId=2, got ${JSON.stringify(fakeState.lastAct)}`)
 
+  // Consent rule: claiming a tab nobody attached needs an explicit confirmation.
+  await assert.rejects(
+    () => tools.get('site_tabs').execute({ action: 'claim', tabId: 77 }, {}),
+    /разрешения/
+  )
+  const confirmedClaim = await tools.get('site_tabs').execute({ action: 'claim', tabId: 77, confirmed: true }, {})
+  assert.match(confirmedClaim.summary, /Подключена вкладка/)
+
+  // ...and closing a tab the user attached needs one too.
+  await post({ kind: 'target', tab: { id: 5, url: 'https://shop.test/mine', title: 'Моя вкладка', attachedBy: 'user' } })
+  await waitFor('user tab', async () => {
+    const state = await tools.get('site_status').execute({}, {})
+    return (state.targets ?? []).some((item) => item.id === 5) ? state : null
+  })
+  await assert.rejects(
+    () => tools.get('site_tabs').execute({ action: 'close', tabId: 5 }, {}),
+    /подтверждения/
+  )
+
   const cursor = await tools.get('site_cursor').execute({ x: 100, y: 200, click: true }, {})
   assert.match(cursor.summary, /кликнул/)
 
