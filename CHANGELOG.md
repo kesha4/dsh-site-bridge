@@ -13,6 +13,21 @@ three at once.
 
 _Nothing yet._
 
+## [0.3.3] — 2026-11-02
+
+### Added
+
+- docs/listing/awesome-dsh-plugin.yml: the entry for the community plugin list, with the checks it
+  has to satisfy written next to it.
+- Package metadata for distribution: epository, homepage and ugs pointing at the repository, so
+  an npm release links back to it (the list maps packages by that field).
+
+### Changed
+
+- peerDependencies now spells out prerelease branches (>=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0 || >=0.3.0-rc.1).
+  A plain >=0.1.0 range silently excludes every prerelease build of the harness, producing ERESOLVE
+  for users on -rc releases.
+
 ## [0.3.2] — 2026-11-02
 
 ### Fixed
