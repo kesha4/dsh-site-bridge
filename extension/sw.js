@@ -275,9 +275,26 @@ async function attach(tabId, attachedBy = 'agent') {
     await evt('active', { tabId })
     return existing.target
   }
+  const tab = await chrome.tabs.get(tabId)
+  // Register the session before talking to the debugger: a child-frame event can
+  // arrive the moment auto-attach is armed, and the listener drops events for
+  // tabs it does not know yet.
+  const session = {
+    tabId,
+    attachedBy,
+    target: { id: tab.id, url: tab.url, title: tab.title, attachedBy },
+    recording: false,
+    entries: [],
+    picking: false,
+    picks: [],
+    children: new Map()
+  }
+  state.sessions.set(tabId, session)
+  state.activeTabId = tabId
   try {
     await chrome.debugger.attach({ tabId }, '1.3')
   } catch (error) {
+    state.sessions.delete(tabId)
     throw new Error(`chrome.debugger.attach отказал: ${String(error?.message ?? error)}`)
   }
   await chrome.debugger.sendCommand({ tabId }, 'Network.enable', {
@@ -287,18 +304,11 @@ async function attach(tabId, attachedBy = 'agent') {
   })
   await chrome.debugger.sendCommand({ tabId }, 'Page.enable').catch(() => {})
   await chrome.debugger.sendCommand({ tabId }, 'Runtime.enable').catch(() => {})
-  const tab = await chrome.tabs.get(tabId)
-  const session = {
-    tabId,
-    attachedBy,
-    target: { id: tab.id, url: tab.url, title: tab.title, attachedBy },
-    recording: false,
-    entries: [],
-    picking: false,
-    picks: []
-  }
-  state.sessions.set(tabId, session)
-  state.activeTabId = tabId
+  // Cross-origin frames are separate targets; attach to them so their network
+  // and DOM are reachable.
+  await chrome.debugger
+    .sendCommand({ tabId }, 'Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: false })
+    .catch(() => {})
   await evt('target', { tab: session.target })
   await evt('active', { tabId })
   return session.target
@@ -424,77 +434,159 @@ function shouldCapture(params, pageUrl) {
   return mime.includes('json')
 }
 
+/* ------------------------------------------------------- OOPIF (child frames) */
+
+// chrome.debugger cannot address a child target by id ("No target with given
+// id"), so a cross-origin frame is driven through Target.sendMessageToTarget and
+// its events arrive as Target.receivedMessageFromTarget. Without this, traffic
+// and DOM inside such a frame stay invisible.
+const tunnelWaiters = new Map()
+let tunnelSeq = 100000
+
+function tunnelSend(tabId, sessionId, method, params = {}, timeoutMs = 15000) {
+  const id = ++tunnelSeq
+  const message = JSON.stringify({ id, method, params })
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      tunnelWaiters.delete(id)
+      reject(new Error(`${method} не ответил за ${timeoutMs} мс`))
+    }, timeoutMs)
+    tunnelWaiters.set(id, { resolve, reject, timer })
+    chrome.debugger
+      .sendCommand({ tabId }, 'Target.sendMessageToTarget', { sessionId, message })
+      .catch((error) => {
+        clearTimeout(timer)
+        tunnelWaiters.delete(id)
+        reject(error)
+      })
+  })
+}
+
+async function watchChildFrame(session, sessionId) {
+  if (!session.children) session.children = new Map()
+  if (session.children.has(sessionId)) return
+  session.children.set(sessionId, { sessionId, url: null })
+  await Promise.all([
+    tunnelSend(session.tabId, sessionId, 'Network.enable', {
+      maxTotalBufferSize: 64_000_000,
+      maxResourceBufferSize: 16_000_000,
+      maxPostDataSize: 1_000_000
+    }).catch(() => {}),
+    tunnelSend(session.tabId, sessionId, 'Runtime.enable', {}).catch(() => {})
+  ])
+}
+
+function handleNetworkEvent(session, child, method, params) {
+  const key = `${child ? child.sessionId : 'root'}:${params.requestId}`
+  if (method === 'Network.requestWillBeSent') {
+    // A child frame reports its own document URL; that is the page context its
+    // requests belong to.
+    if (child && !child.url) child.url = String(params.documentURL ?? '') || null
+    if (!shouldCapture(params, child?.url || session.target?.url)) return
+    requests.set(key, {
+      id: params.requestId,
+      ts: Date.now(),
+      type: String(params.type ?? '').toLowerCase(),
+      method: params.request.method,
+      url: params.request.url,
+      frame: child?.url ?? null,
+      request: {
+        headers: params.request.headers || {},
+        body: params.request.postData ?? null
+      },
+      status: null,
+      mimeType: params.response?.mimeType ?? null,
+      response: { headers: {}, body: null },
+      failed: null
+    })
+    return
+  }
+  if (method === 'Network.responseReceived') {
+    const entry = requests.get(key)
+    if (!entry) return
+    entry.status = params.response.status
+    entry.mimeType = params.response.mimeType
+    entry.response.headers = params.response.headers || {}
+    return
+  }
+  if (method === 'Network.loadingFinished') {
+    const entry = requests.get(key)
+    if (!entry) return
+    requests.delete(key)
+    const bodyRequest = child
+      ? tunnelSend(session.tabId, child.sessionId, 'Network.getResponseBody', { requestId: params.requestId }).catch(() => null)
+      : chrome.debugger
+          .sendCommand({ tabId: session.tabId }, 'Network.getResponseBody', { requestId: params.requestId })
+          .catch(() => null)
+    bodyRequest
+      .then((payload) => {
+        const { body, base64Encoded } = payload ?? {}
+        const text = String(body ?? '')
+        if (base64Encoded) {
+          entry.response.base64Chars = text.length
+          entry.response.note = 'base64 body not stored'
+        } else {
+          const limit = Number(state.maxBodyChars) || DEFAULT_MAX_BODY_CHARS
+          entry.response.body = text.slice(0, limit)
+          entry.response.bodyChars = text.length
+          if (text.length > limit) {
+            entry.response.truncated = true
+            entry.response.truncatedAt = limit
+          }
+        }
+        if (session.recording) keepEntry(session, entry)
+      })
+      .catch(() => {
+        entry.response.body = null
+        if (session.recording) keepEntry(session, entry)
+      })
+    return
+  }
+  if (method === 'Network.loadingFailed') {
+    const entry = requests.get(key)
+    if (!entry) return
+    entry.failed = params.errorText || 'failed'
+    requests.delete(key)
+    if (session.recording) keepEntry(session, entry)
+  }
+}
+
 chrome.debugger.onEvent.addListener((source, method, params) => {
   const session = state.sessions.get(source.tabId)
   if (!session) return
   try {
-    if (method === 'Network.requestWillBeSent') {
-      if (!shouldCapture(params, session.target?.url)) return
-      requests.set(params.requestId, {
-        id: params.requestId,
-        ts: Date.now(),
-        type: String(params.type ?? '').toLowerCase(),
-        method: params.request.method,
-        url: params.request.url,
-        request: {
-          headers: params.request.headers || {},
-          body: params.request.postData ?? null
-        },
-        status: null,
-        mimeType: params.response?.mimeType ?? null,
-        response: { headers: {}, body: null },
-        failed: null
-      })
+    if (method === 'Target.attachedToTarget') {
+      const info = params.targetInfo ?? {}
+      if (info.type === 'iframe') void watchChildFrame(session, params.sessionId)
       return
     }
-    if (method === 'Network.responseReceived') {
-      const entry = requests.get(params.requestId)
-      if (!entry) return
-      entry.status = params.response.status
-      entry.mimeType = params.response.mimeType
-      entry.response.headers = params.response.headers || {}
+    if (method === 'Target.detachedFromTarget') {
+      session.children?.delete(params.sessionId)
       return
     }
-    if (method === 'Network.loadingFinished') {
-      const entry = requests.get(params.requestId)
-      if (!entry) return
-      requests.delete(params.requestId)
-      chrome.debugger
-        .sendCommand(
-          { tabId: source.tabId },
-          'Network.getResponseBody',
-          { requestId: params.requestId }
-        )
-        .then(({ body, base64Encoded }) => {
-          const text = String(body ?? '')
-          if (base64Encoded) {
-            entry.response.body = null
-            entry.response.base64Chars = text.length
-            entry.response.note = 'base64 body not stored'
-          } else {
-            const limit = Number(state.maxBodyChars) || DEFAULT_MAX_BODY_CHARS
-            entry.response.body = text.slice(0, limit)
-            entry.response.bodyChars = text.length
-            if (text.length > limit) {
-              entry.response.truncated = true
-              entry.response.truncatedAt = limit
-            }
-          }
-          if (session.recording) keepEntry(session, entry)
-        })
-        .catch(() => {
-          entry.response.body = null
-          if (session.recording) keepEntry(session, entry)
-        })
+    if (method === 'Target.receivedMessageFromTarget') {
+      let message = null
+      try {
+        message = JSON.parse(params.message)
+      } catch {
+        return
+      }
+      if (!message) return
+      if (message.id && tunnelWaiters.has(message.id)) {
+        const waiter = tunnelWaiters.get(message.id)
+        tunnelWaiters.delete(message.id)
+        clearTimeout(waiter.timer)
+        if (message.error) waiter.reject(new Error(String(message.error.message ?? 'tunnel error')))
+        else waiter.resolve(message.result ?? {})
+        return
+      }
+      if (typeof message.method === 'string' && message.method.startsWith('Network.')) {
+        const child = session.children?.get(params.sessionId) ?? { sessionId: params.sessionId, url: null }
+        handleNetworkEvent(session, child, message.method, message.params ?? {})
+      }
       return
     }
-    if (method === 'Network.loadingFailed') {
-      const entry = requests.get(params.requestId)
-      if (!entry) return
-      entry.failed = params.errorText || 'failed'
-      requests.delete(params.requestId)
-      if (session.recording) keepEntry(session, entry)
-    }
+    if (method.startsWith('Network.')) handleNetworkEvent(session, null, method, params)
   } catch {
     // never let a capture bug break the debugger session
   }
@@ -1757,6 +1849,7 @@ async function dispatch(op, args) {
           type: entry.type,
           mimeType: entry.mimeType,
           failed: entry.failed,
+          frame: entry.frame ?? null,
           hasBody: Boolean(entry.response?.body)
         }))
       return { captured: session.entries.length, items }

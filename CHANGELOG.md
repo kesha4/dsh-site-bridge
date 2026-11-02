@@ -13,6 +13,25 @@ three at once.
 
 _Nothing yet._
 
+## [0.9.0] — 2026-11-02
+
+### Added
+
+- **Network capture inside cross-origin frames (OOPIF).** The worker arms
+  `Target.setAutoAttach` on every attached tab, watches child targets and drives them through
+  `Target.sendMessageToTarget` — `chrome.debugger` cannot address a child target by id, so the tunnel
+  is the only way in. Requests from such frames now reach the bundle, each entry carries the `frame`
+  URL it came from, and `api.md` prints `- frame: …` next to the contract. Bodies are fetched inside
+  the child session, so widget APIs are documented like the page's own.
+- `test/oopif.mjs` (4 checks): a page on one site embeds a frame from another site; the frame's JSON
+  call must appear in the capture with its frame URL.
+
+### Fixed
+
+- The session is registered before the debugger talks to the tab. A child-frame event arrives the
+  moment auto-attach is armed, and the listener used to drop events for tabs it did not know yet.
+
+
 ## [0.8.2] — 2026-11-02
 
 ### Added
