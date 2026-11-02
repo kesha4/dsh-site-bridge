@@ -149,5 +149,8 @@
   },
   "disconnectTab": {
     "message": "Disconnect this tab"
+  },
+  "notClaimable": {
+    "message": "This page cannot be attached: Chrome does not allow service pages or other extensions' pages"
   }
 }

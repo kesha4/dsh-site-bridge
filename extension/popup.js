@@ -138,10 +138,17 @@ function render(status) {
 
   // Nothing to claim once a tab is bound: the action would be a no-op.
   const selfAttached = selfTabId != null && targets.some((item) => item.id === selfTabId)
+  // Service pages (chrome://, other extensions, the Web Store) cannot be driven;
+  // do not offer a button that Chrome will refuse.
+  const claimable = selfTabUrl == null || /^(https?|file):/.test(selfTabUrl)
   claim.hidden = targets.length > 0
-  claim.disabled = !connected || targets.length > 0
+  claim.disabled = !connected || !claimable || targets.length > 0
+  claim.title = claimable ? '' : t('notClaimable')
   claim.textContent = t('connectTab')
-  $('claim-more').hidden = targets.length === 0 || selfAttached
+  const claimMore = $('claim-more')
+  claimMore.hidden = targets.length === 0 || selfAttached
+  claimMore.disabled = !connected || !claimable
+  claimMore.title = claimable ? t('attachAnother') : t('notClaimable')
 
   const pick = $('pick')
   pick.classList.toggle('active', status.picking === true)
@@ -170,17 +177,44 @@ function render(status) {
 // Which tab this popup is open on: attaching that tab again is a no-op, so the
 // attach button is only offered when the current tab is not attached yet.
 let selfTabId = null
+let selfTabUrl = null
 
 async function refresh() {
   try {
     if (chrome.tabs?.query) {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+      const tab = await currentBrowserTab()
       selfTabId = tab?.id ?? null
+      selfTabUrl = tab?.url ?? null
     }
     render(await send({ type: 'status' }))
   } catch {
     render(null)
   }
+}
+
+/**
+ * The browser tab this popup belongs to. `currentWindow` from a popup can point
+ * at the popup's own extension page, and Chrome refuses to read other
+ * extensions' pages, so prefer a real http(s)/file tab from the focused window.
+ */
+async function currentBrowserTab() {
+  const scheme = (tab) => (/^(https?|file):/.test(String(tab?.url ?? '')) ? 'web' : 'other')
+  const scopes = [
+    { active: true, lastFocusedWindow: true, windowType: 'normal' },
+    { active: true, windowType: 'normal' },
+    { active: true, lastFocusedWindow: true },
+    { active: true, currentWindow: true }
+  ]
+  for (const scope of scopes) {
+    try {
+      const tabs = await chrome.tabs.query(scope)
+      if (!Array.isArray(tabs) || tabs.length === 0) continue
+      return tabs.find((tab) => scheme(tab) === 'web') ?? tabs[0]
+    } catch {
+      // try the next scope
+    }
+  }
+  return null
 }
 
 /* Autosave: a complete pair is stored as soon as it appears, no button. */
@@ -262,7 +296,7 @@ $('import-file').addEventListener('change', async (event) => {
 async function attachCurrentTab() {
   let tabId = null
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+    const tab = await currentBrowserTab()
     tabId = tab?.id ?? null
   } catch {
     tabId = null

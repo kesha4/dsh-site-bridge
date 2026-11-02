@@ -148,6 +148,10 @@ try {
   const hidden = await inWorker(`__dshSiteBridge.handle('act', { steps: [{ op: 'wait', selector: '#msg', state: 'hidden', timeoutMs: 3000 }] }).then((r) => r.results[0])`)
   check('wait hidden resolves for a hidden element', hidden?.hidden === '#msg', JSON.stringify(hidden))
 
+  // A tab that cannot be read must say so, not leak a Chrome internal error.
+  const badClaim = await inWorker(`__dshSiteBridge.handle('tab.claim', { tabId: 987654321 }).then(() => 'ok').catch((e) => String(e.message))`)
+  check('claiming an unreadable tab explains itself', /нельзя подключить/.test(badClaim), badClaim)
+
   // tab.open attaches a second tab
   const opened = await inWorker(`__dshSiteBridge.handle('tab.open', { url: '${base}/b' }).then((r) => r)`)
   check('tab.open attaches the new tab', String(opened?.target?.url ?? '').includes('/b'), JSON.stringify(opened))

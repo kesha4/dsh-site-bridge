@@ -284,13 +284,26 @@ async function claimTab(tabId, attachedBy = 'agent') {
   // caller that only knows "this tab" cannot silently pass NaN.
   let id = Number(tabId)
   if (!Number.isFinite(id)) {
-    const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+    const candidates = await chrome.tabs
+      .query({ active: true, lastFocusedWindow: true, windowType: 'normal' })
+      .catch(() => [])
+    const active = candidates.find((tab) => /^(https?|file):/.test(tab.url ?? '')) ?? candidates[0]
     id = active?.id
   }
   if (!Number.isFinite(id)) throw new Error('no tab to claim: pass tabId or open a page first')
-  const tab = await chrome.tabs.get(id)
+  let tab = null
+  try {
+    tab = await chrome.tabs.get(id)
+  } catch (error) {
+    // Chrome refuses to read pages of other extensions and its own service
+    // pages; say that in words a person can act on.
+    throw new Error(`эту вкладку нельзя подключить: ${String(error?.message ?? error)}`)
+  }
   if (!/^https?:|^file:/.test(tab.url ?? '')) {
-    throw new Error(`cannot drive ${tab.url || 'this tab'}: only http(s) and file:// pages are supported`)
+    const scheme = String(tab.url ?? '').split(':')[0] || 'неизвестная схема'
+    throw new Error(
+      `эту страницу нельзя подключить (${scheme}:): Chrome не даёт доступ к служебным страницам и страницам других расширений. Откройте обычный сайт http(s) или file://`
+    )
   }
   return attach(id, attachedBy)
 }

@@ -149,5 +149,8 @@
   },
   "disconnectTab": {
     "message": "断开此标签页"
+  },
+  "notClaimable": {
+    "message": "无法连接此页面：Chrome 不允许访问服务页面或其他扩展的页面"
   }
 }

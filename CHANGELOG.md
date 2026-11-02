@@ -13,6 +13,28 @@ three at once.
 
 _Nothing yet._
 
+## [0.7.2] — 2026-11-02
+
+### Fixed
+
+- **"Cannot access a chrome-extension:// URL of different extension" while the popup sat on a normal
+  site.** The popup resolved "its" tab with `currentWindow: true`, which from a popup can point at the
+  popup's own extension page instead of the page underneath. It now looks for an active tab in the
+  focused normal window and prefers a real http(s)/file page; the worker's no-id fallback does the same.
+  The 0.7.1 message fix stays — it now only triggers for genuinely unreadable pages.
+
+
+## [0.7.1] — 2026-11-02
+
+### Fixed
+
+- **"Cannot access a chrome-extension:// URL of different extension" in the popup.** Claiming a service
+  page or another extension's page leaked Chrome's internal error. The popup now detects an unreadable
+  scheme, disables the attach buttons and explains why in the tooltip; the worker's own refusal names the
+  scheme and says what to open instead.
+- `test/browser-ops.mjs` covers an unreadable tab (12 checks).
+
+
 ## [0.7.0] — 2026-11-02
 
 ### Added
