@@ -124,7 +124,7 @@ The popup UI follows the browser language: English, Russian and Simplified Chine
 
 ```text
 site_status                     → bridge state, pairing path, tabs
-site_tabs {action:"list"}       → tabs; claim/use/release/open/focus
+site_tabs {action:"list"}       → tabs; claim/use/release/open/close/focus
 site_network {action:"start"}   → begin recording, then act on the page
 site_capture {screenshot:true}  → write the bundle into the workspace
 site_snapshot {limit:40}        → interactive elements with stable selectors
@@ -144,6 +144,13 @@ A typical loop for writing a page-embedded extension:
 4. `site_inject` with the script body → check that the anchor is found and the BFF call passes with
    the browser's cookies.
 5. Iterate on the selectors the capture marked as fragile.
+
+### Popup and tools are the same surface
+
+The popup is a manual control for the person at the keyboard: attach a tab, detach it, start recording,
+pick an element. The agent can do all of that through the tools, including `site_tabs {action:"claim"}`
+for any tab it sees in `list`. The attach button is a human gesture, not a permission gate — the
+bridge token is the only thing that decides who may drive the browser.
 
 ## Architecture
 

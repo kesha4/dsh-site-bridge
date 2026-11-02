@@ -13,6 +13,16 @@ three at once.
 
 _Nothing yet._
 
+## [0.6.4] — 2026-11-02
+
+### Changed
+
+- README (en/ru/zh) states the division of labour explicitly: the popup is a manual control for the
+  person — attach, detach, record, pick — while the agent can do the same through the tools, including
+  claiming any tab it sees in `site_tabs {action:"list"}`. The attach button is a human gesture, not a
+  permission gate; the bridge token is what decides who may drive the browser.
+
+
 ## [0.6.3] — 2026-11-02
 
 ### Fixed

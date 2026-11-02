@@ -103,7 +103,7 @@ Chrome 会显示「已开始调试此浏览器」提示条：这正是全部功�
 
 ```text
 site_status                     → 网桥状态、配对路径、标签页
-site_tabs {action:"list"}       → 标签页；claim/use/release/open/focus
+site_tabs {action:"list"}       → 标签页；claim/use/release/open/close/focus
 site_network {action:"start"}   → 开始录制，然后在页面上操作
 site_capture {screenshot:true}  → 把快照包写入工作区
 site_snapshot {limit:40}        → 带稳定选择器的可交互元素
@@ -122,6 +122,12 @@ site_inject {js:"..."}          → 在页面里执行你的脚本以验证
 3. 在你自己的仓库里写 userscript / content script。
 4. 用 `site_inject` 注入脚本体 → 确认锚点能找到、BFF 调用能带着浏览器 Cookie 通过。
 5. 针对快照标记为脆弱的选择器继续调整。
+
+### 弹出窗口与工具是同一条通道
+
+弹出窗口是给键盘前的人的双手控制：连接标签页、断开、开始录制、选择元素。智能体通过工具可以做同样
+的事，包括对 `list` 中任意标签页执行 `site_tabs {action:"claim"}`。连接按钮是人的操作，而不是权限
+闸门——能否驱动浏览器只由网桥令牌决定。
 
 ## 架构
 
