@@ -13,6 +13,17 @@ three at once.
 
 _Nothing yet._
 
+## [0.4.1] — 2026-11-02
+
+### Changed
+
+- README (en/ru/zh): the security section is now a description of how this plugin works — token on
+  every request, `debugger` instead of `<all_urls>`, permission per tab and session — with no
+  judgement about how other plugins do it.
+- The same edit removes the evaluative aside from the "how this differs" section: it states what this
+  plugin is built for instead of commenting on other approaches.
+
+
 ## [0.4.0] — 2026-11-02
 
 ### Added

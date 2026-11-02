@@ -70,9 +70,8 @@ candidates checked for uniqueness, and the site's own xhr/fetch calls with heade
 written to files an agent can read. Automation exists so that "this selector works" and "this BFF call
 passes with my cookies" are checked against the live page instead of assumed.
 
-The practical consequence: for generic web browsing, a dedicated automation plugin will have more
-tools than this one, and that is fine — it is solving a different problem. For writing an extension
-that embeds into one specific site, you need the capture, and the input comes with it.
+The practical consequence: this plugin is built for writing an extension for one specific site, and
+the input tools exist to verify that work against the live page rather than to browse the web.
 
 ## Requirements
 
@@ -181,12 +180,12 @@ The wire protocol is small and documented in [docs/protocol.md](docs/protocol.md
   puts a secret under an unusual key, redaction will not recognise it. Treat a capture bundle as
   sensitive, exactly like any traffic dump.
 
-### Position on trust
+### Trust model
 
-This is a deliberate trade-off, not a claim of superiority. The bridge requires a token and the
-extension asks for `debugger` rather than `<all_urls>`, which costs convenience — a pairing step and
-the Chrome debugging banner — and buys a smaller blast radius. Plugins that skip the token or take
-host permissions are not doing it wrong; they optimise for a different thing.
+The bridge accepts only requests that carry the pairing token. The extension asks for `debugger`
+instead of `<all_urls>` and does not inject a content script into every page. The cost is a pairing
+step and Chrome's debugging banner. In exchange the permission is granted per tab, for the duration
+of a session, and requests are read where they are made — no credential is copied out of the browser.
 
 ## Limitations
 
