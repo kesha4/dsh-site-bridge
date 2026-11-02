@@ -141,6 +141,19 @@ try {
   await evaluate(`__dshSiteBridge.handle('tab.release', { tabId: ${tabs[0]} }).then(() => true)`)
   const auto = await evaluate(`__dshSiteBridge.handle('tab.claim', {}).then((r) => r.target)`)
   check('claim without a tab id attaches the active tab', Boolean(auto?.url?.startsWith(base)), JSON.stringify(auto))
+
+  // open + close round trip: the session must appear and disappear with the tab.
+  const before = await evaluate(`__dshSiteBridge.state.sessions.size`)
+  await evaluate(`__dshSiteBridge.handle('tab.open', { url: '${base}/c' }).then(() => true)`)
+  const openedCount = await evaluate(`__dshSiteBridge.state.sessions.size`)
+  const openedId = await evaluate(`__dshSiteBridge.state.activeTabId`)
+  await evaluate(`__dshSiteBridge.handle('tab.close', { tabId: ${openedId} }).then(() => true)`)
+  const after = await evaluate(`__dshSiteBridge.state.sessions.size`)
+  check(
+    'tab.close removes the tab and its session',
+    openedCount === before + 1 && after === before,
+    `before=${before} opened=${openedCount} after=${after}`
+  )
 } catch (error) {
   check('multi-tab run completed without exceptions', false, String(error?.stack ?? error))
 } finally {

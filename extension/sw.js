@@ -1502,6 +1502,13 @@ async function dispatch(op, args) {
       const active = activeSession()
       return { target: active?.target ?? null, attached: state.activeTabId, tabs: [...state.sessions.keys()] }
     }
+    case 'tab.close': {
+      const id = Number(args.tabId ?? state.activeTabId)
+      if (!Number.isFinite(id)) throw new Error('нечего закрывать: передайте tabId')
+      await detach(id).catch(() => {})
+      await chrome.tabs.remove(id)
+      return { closed: id }
+    }
     case 'tab.open': {
       const tab = await chrome.tabs.create({ url: String(args.url ?? 'about:blank'), active: args.active !== false })
       await attach(tab.id)

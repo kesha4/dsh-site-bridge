@@ -13,6 +13,15 @@ three at once.
 
 _Nothing yet._
 
+## [0.6.2] — 2026-11-02
+
+### Added
+
+- `site_tabs {action:"close", tabId}` — closes a tab and drops its debugger session. Opening a tab was
+  possible since 0.5.0, closing it was not, so an agent that opened a page for a check could not clean
+  up after itself. Covered by a round-trip check in `test/multitab.mjs` (7 checks).
+
+
 ## [0.6.1] — 2026-11-02
 
 ### Changed
