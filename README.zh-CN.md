@@ -58,6 +58,12 @@ site_capture → captures/<host>/<timestamp>/
 ### 1. 宿主部分
 
 ```powershell
+dsh plugin --profile desktop add dsh-site-bridge
+```
+
+以上会安装已发布的 npm 包。从本地克隆安装则用：
+
+```powershell
 # 在仓库根目录
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1
 ```

@@ -70,6 +70,12 @@ site_capture → captures/<host>/<timestamp>/
 ### 1. Host-половина
 
 ```powershell
+dsh plugin --profile desktop add dsh-site-bridge
+```
+
+Это ставит опубликованный пакет. Из локального клона вместо этого:
+
+```powershell
 # из корня репозитория
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1
 ```

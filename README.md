@@ -70,6 +70,12 @@ that code in the live page, so "it should work" becomes "it works here".
 ### 1. Host half
 
 ```powershell
+dsh plugin --profile desktop add dsh-site-bridge
+```
+
+That pulls the published package. From a local checkout instead:
+
+```powershell
 # from the repository root
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1
 ```
