@@ -167,5 +167,8 @@
   },
   "popupStale": {
     "message": "The extension was reloaded — close and reopen this popup"
+  },
+  "restartWorker": {
+    "message": "Restart the extension service"
   }
 }

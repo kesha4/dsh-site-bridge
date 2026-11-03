@@ -13,6 +13,19 @@ three at once.
 
 _Nothing yet._
 
+## [0.11.2] — 2026-11-04
+
+### Fixed
+
+- **"Служба расширения не отвечает" on every popup open.** The pause release declared `paused` *after*
+  the line that used it, so `render()` threw `Cannot access 'paused' before initialization` on every
+  update; the popup caught that and showed the worker-down text. The variable is declared before use —
+  the popup now renders the bridge state again.
+- The popup keeps the failure reason visible instead of a generic phrase (a failed tab lookup no longer
+  hides the status) and offers a **"Перезапустить службу расширения"** button when it cannot reach the
+  worker at all.
+
+
 ## [0.11.1] — 2026-11-04
 
 ### Fixed

@@ -167,5 +167,8 @@
   },
   "popupStale": {
     "message": "扩展已重新加载——请关闭并重新打开此窗口"
+  },
+  "restartWorker": {
+    "message": "重启扩展服务"
   }
 }

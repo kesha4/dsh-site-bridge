@@ -75,6 +75,7 @@
       button:hover:not(:disabled) { border-color: #3a4150; background: #242935; }
       button:disabled { opacity: 0.45; cursor: default; }
       button.primary#claim-more { margin-top: 8px; font-size: 12px; padding: 7px 10px; }
+      button.primary#restart { margin-top: 8px; font-size: 12px; padding: 7px 10px; }
       button.primary { width: 100%; background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
       button.primary:hover:not(:disabled) { background: #6b8aff; border-color: #6b8aff; }
       button.primary:disabled { background: #20242d; border-color: var(--line); color: var(--muted); font-weight: 500; }
@@ -178,6 +179,7 @@
 
       <button class="primary" id="claim" data-i18n="connectTab">Подключить эту вкладку</button>
       <p class="status-note" id="status-note" hidden></p>
+      <button class="primary" id="restart" hidden data-i18n="restartWorker">Перезапустить службу</button>
 
       <button class="primary" id="claim-more" hidden data-i18n="attachAnother">Подключить ещё вкладку</button>
 

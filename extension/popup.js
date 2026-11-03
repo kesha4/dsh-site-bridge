@@ -96,12 +96,18 @@ function render(status) {
     capture.disabled = true
     const stale = /context invalidated|Receiving end does not exist/i.test(String(lastSendError ?? ''))
     setNote(stale ? t('popupStale') : String(lastSendError ?? t('statusWorkerDown')), true)
+    $('restart').hidden = false
     return
   }
 
+  $('restart').hidden = true
   const connected = status.connected === true
   const configured = status.configured === true
   const hasTarget = Boolean(status.target)
+  // Declared before use: `connecting` below depends on it, and touching it
+  // earlier threw "Cannot access 'paused' before initialization" — which the
+  // popup reported as "the extension service is not responding".
+  const paused = status.paused === true
 
   // While the bridge is being looked for, a spinner plus an attempt counter
   // says "this is in progress, waiting is fine" instead of a dead end.
@@ -111,7 +117,6 @@ function render(status) {
   dot.hidden = connecting
   spin.hidden = !connecting
 
-  const paused = status.paused === true
   if (paused) {
     dot.hidden = false
     dot.classList.add('warn')
@@ -222,12 +227,20 @@ let selfTabUrl = null
 async function refresh() {
   try {
     if (chrome.tabs?.query) {
-      const tab = await currentBrowserTab()
-      selfTabId = tab?.id ?? null
-      selfTabUrl = tab?.url ?? null
+      // Knowing the tab is a nicety: never let it hide the bridge state.
+      try {
+        const tab = await currentBrowserTab()
+        selfTabId = tab?.id ?? null
+        selfTabUrl = tab?.url ?? null
+      } catch (error) {
+        selfTabId = null
+        selfTabUrl = null
+        lastSendError = String(error?.message ?? error)
+      }
     }
     render(await send({ type: 'status' }))
-  } catch {
+  } catch (error) {
+    if (!lastSendError) lastSendError = String(error?.message ?? error)
     render(null)
   }
 }
@@ -387,6 +400,8 @@ $('tabs-list').addEventListener('click', async (event) => {
     return
   }
 })
+
+$('restart').addEventListener('click', () => chrome.runtime.reload())
 
 $('pause').addEventListener('click', async () => {
   const current = await send({ type: 'status' })
