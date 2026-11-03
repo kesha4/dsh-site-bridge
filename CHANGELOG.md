@@ -13,6 +13,30 @@ three at once.
 
 _Nothing yet._
 
+## [0.10.0] — 2026-11-03
+
+### Added
+
+- **DOM and actions inside cross-origin frames.** A selector may now cross an OOPIF boundary as
+  `iframe[src="…"] >>> #inner`: the worker finds the frame in the page, hands the rest of the selector
+  to the frame's session and adds the frame's offset back to the coordinates, so a click lands where a
+  person would click. `site_snapshot` merges the frame's interactive elements in with prefixed
+  selectors and page coordinates, and `site_text`, `fill` and `select` evaluate inside the frame.
+- `test/oopif.mjs` grew to 8 checks: snapshot from the frame, prefixed selector, text inside the frame,
+  a real click through the boundary, and the frame's own JSON call in the capture.
+
+### Fixed
+
+- `site_text` silently returned an empty string for any selector: it treated the resolver's
+  `{ el, ox, oy }` hit as the element itself. This was true before frames existed — the page-wide form
+  just never exercised it.
+
+### Known gaps
+
+- A second nested OOPIF (a cross-origin frame inside a cross-origin frame) is not walked yet, and
+  `upload` does not reach into a frame.
+
+
 ## [0.9.0] — 2026-11-02
 
 ### Added

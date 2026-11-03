@@ -44,6 +44,7 @@ const inner = createServer((req, res) => {
   res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
   res.end(`<!doctype html><html><body>
     <h2 id="inner">inner frame</h2>
+    <button id="inner-btn" onclick="fetch('/api/click').catch(() => {})">inner click</button>
     <script>fetch('/api/inner').catch(() => {})</script>
   </body></html>`)
 })
@@ -135,6 +136,22 @@ try {
 
   const list = await inWorker(`__dshSiteBridge.handle('net.list', {}).then((r) => r)`)
   const entries = Array.isArray(list?.items) ? list.items : []
+  const frameSelector = `iframe[src="http://localhost:${innerPort}/frame"]`
+
+  const snapshot = await inWorker(`__dshSiteBridge.handle('snapshot.compact', { limit: 60 }).then((r) => r)`)
+  const frameItem = (snapshot?.items ?? []).find((item) => String(item.selector).includes('>>>') && String(item.name).includes('inner click'))
+  check('snapshot includes elements from the frame', Boolean(frameItem), JSON.stringify((snapshot?.items ?? []).map((i) => i.selector)).slice(0, 300))
+  check('frame elements carry a prefixed selector', Boolean(frameItem?.selector?.startsWith('iframe')), String(frameItem?.selector))
+
+  const frameText = await inWorker(`__dshSiteBridge.handle('text.get', { selector: ${JSON.stringify(frameSelector + ' >>> #inner')} }).then((r) => r)`)
+  check('text can be read inside the frame', String(frameText?.text ?? '').includes('inner frame'), JSON.stringify(frameText))
+
+  await inWorker(`__dshSiteBridge.handle('act', { steps: [{ op: 'click', selector: ${JSON.stringify(frameSelector + ' >>> #inner-btn')} }] }).then((r) => r)`)
+  await sleep(1500)
+  const afterClick = await inWorker(`__dshSiteBridge.handle('net.list', {}).then((r) => r)`)
+  const clickEntry = (afterClick?.items ?? []).find((entry) => String(entry.url).includes('/api/click'))
+  check('a click inside the frame reaches it', Boolean(clickEntry), JSON.stringify((afterClick?.items ?? []).map((e) => e.url)).slice(0, 300))
+
   const fromFrame = entries.find((entry) => String(entry.url).includes('/api/inner'))
   check('traffic from the frame is captured', Boolean(fromFrame), JSON.stringify(entries.map((e) => e.url)).slice(0, 300))
   check('the entry names its frame', Boolean(fromFrame?.frame && fromFrame.frame.includes('localhost')), JSON.stringify(fromFrame?.frame))

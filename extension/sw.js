@@ -1040,22 +1040,81 @@ const PAGE_RESOLVER = `
   };
 `
 
-async function elementCenter(selector) {
-  const { result } = await cdp('Runtime.evaluate', {
-    expression: `(() => {
-      ${PAGE_RESOLVER}
-      const hit = __dshDeep(${JSON.stringify(selector)});
-      if (!hit) return null;
-      const el = hit.el;
-      el.scrollIntoView({ block: 'center', inline: 'center' });
-      const r = el.getBoundingClientRect();
-      if (r.width === 0 && r.height === 0) return { x: 0, y: 0, empty: true };
-      return { x: r.left + r.width / 2 + hit.ox, y: r.top + r.height / 2 + hit.oy, w: r.width, h: r.height };
-    })()`,
-    returnByValue: true
+/** Evaluates in the page or in an attached child frame. */
+async function evaluateInPage(session, child, expression) {
+  if (!child) {
+    const { result, exceptionDetails } = await chrome.debugger.sendCommand(
+      { tabId: session.tabId },
+      'Runtime.evaluate',
+      { expression, returnByValue: true }
+    )
+    if (exceptionDetails) throw new Error(exceptionDetails.text ?? 'evaluate failed')
+    return result?.value
+  }
+  const payload = await tunnelSend(session.tabId, child.sessionId, 'Runtime.evaluate', { expression, returnByValue: true })
+  if (payload?.exceptionDetails) {
+    throw new Error(payload.exceptionDetails.exception?.description ?? payload.exceptionDetails.text ?? 'evaluate failed in frame')
+  }
+  return payload?.result?.value
+}
+
+/** A child session whose URL matches the frame's src, or the only child. */
+function findChildByUrl(session, src) {
+  const children = [...(session.children?.values() ?? [])]
+  if (children.length === 0) return null
+  const wanted = String(src || '')
+  const exact = children.find((child) => {
+    if (!child.url || !wanted) return false
+    const a = child.url.split('?')[0]
+    const b = wanted.split('?')[0]
+    return a === b || a.startsWith(b) || b.startsWith(a)
   })
-  if (!result?.value) throw new Error(`element not found: ${selector}`)
-  return result.value
+  return exact ?? (children.length === 1 ? children[0] : null)
+}
+
+/**
+ * Resolves `frame >>> inner`. A same-origin frame is left to the existing page
+ * resolver; a cross-origin one hands the rest of the selector to its session and
+ * remembers the frame's offset inside the page.
+ */
+async function selectorContext(session, selector) {
+  const parts = String(selector).split('>>>').map((part) => part.trim()).filter(Boolean)
+  if (parts.length < 2) return { child: null, selector: String(selector), dx: 0, dy: 0 }
+  const frameSelector = parts[0]
+  const inner = parts.slice(1).join(' >>> ')
+  const frameHit = await evaluateInPage(session, null, `(() => {
+    ${PAGE_RESOLVER}
+    const found = __dshFind(${JSON.stringify(frameSelector)});
+    if (!found) return null;
+    const el = found.el;
+    if (el.tagName !== 'IFRAME') return { notFrame: true };
+    let cross = false;
+    try { cross = !el.contentDocument; } catch { cross = true; }
+    const r = el.getBoundingClientRect();
+    return { x: r.left + found.ox, y: r.top + found.oy, src: String(el.src || ''), cross };
+  })()`)
+  if (!frameHit) throw new Error(`frame not found: ${frameSelector}`)
+  if (!frameHit.cross) return { child: null, selector: String(selector), dx: 0, dy: 0 }
+  const child = findChildByUrl(session, frameHit.src)
+  if (!child) throw new Error(`cross-origin frame is not attached yet: ${frameHit.src}`)
+  return { child, selector: inner, dx: frameHit.x, dy: frameHit.y }
+}
+
+async function elementCenter(selector) {
+  const session = requireSession()
+  const ctx = await selectorContext(session, selector)
+  const value = await evaluateInPage(session, ctx.child, `(() => {
+    ${PAGE_RESOLVER}
+    const hit = __dshDeep(${JSON.stringify(ctx.selector)});
+    if (!hit) return null;
+    const el = hit.el;
+    el.scrollIntoView({ block: 'center', inline: 'center' });
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return { x: 0, y: 0, empty: true };
+    return { x: r.left + r.width / 2 + hit.ox + ${ctx.dx}, y: r.top + r.height / 2 + hit.oy + ${ctx.dy}, w: r.width, h: r.height };
+  })()`)
+  if (!value) throw new Error(`element not found: ${selector}`)
+  return value
 }
 
 async function mouseClick(x, y, { button = 'left', clickCount = 1 } = {}) {
@@ -1145,10 +1204,11 @@ async function runStep(op, step) {
       return { hovered: step.selector }
     }
     case 'fill': {
-      const { result } = await cdp('Runtime.evaluate', {
-        expression: `(() => {
+      const fillSession = requireSession()
+      const fillCtx = await selectorContext(fillSession, step.selector)
+      const result = { value: await evaluateInPage(fillSession, fillCtx.child, `(() => {
           ${PAGE_RESOLVER}
-          const hit = __dshDeep(${JSON.stringify(step.selector)});
+          const hit = __dshDeep(${JSON.stringify(fillCtx.selector)});
           if (!hit) return { ok: false, error: 'not found' };
           const el = hit.el;
           const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype
@@ -1160,9 +1220,7 @@ async function runStep(op, step) {
           el.dispatchEvent(new Event('input', { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
           return { ok: true, value: el.value };
-        })()`,
-        returnByValue: true
-      })
+        })()`) }
       if (!result?.value?.ok) throw new Error(`fill failed for ${step.selector}: ${result?.value?.error ?? 'unknown'}`)
       return { filled: step.selector, value: result.value.value }
     }
@@ -1171,10 +1229,11 @@ async function runStep(op, step) {
       return { typed: step.selector }
     }
     case 'select': {
-      const { result } = await cdp('Runtime.evaluate', {
-        expression: `(() => {
+      const selectSession = requireSession()
+      const selectCtx = await selectorContext(selectSession, step.selector)
+      const result = { value: await evaluateInPage(selectSession, selectCtx.child, `(() => {
           ${PAGE_RESOLVER}
-          const hit = __dshDeep(${JSON.stringify(step.selector)});
+          const hit = __dshDeep(${JSON.stringify(selectCtx.selector)});
           if (!hit) return { ok: false, error: 'not found' };
           const el = hit.el;
           const value = ${JSON.stringify(String(step.value ?? ''))};
@@ -1186,9 +1245,7 @@ async function runStep(op, step) {
           }
           el.click();
           return { ok: true, custom: true };
-        })()`,
-        returnByValue: true
-      })
+        })()`) }
       if (!result?.value?.ok) throw new Error(`select failed for ${step.selector}`)
       return { selected: step.selector, value: result.value.value ?? null }
     }
@@ -1743,18 +1800,55 @@ async function dispatch(op, args) {
     }
     case 'snapshot.compact': {
       const session = requireSession(args.tabId)
-      const { result } = await cdp('Runtime.evaluate', {
-        expression: `(${compactSnapshotInPage.toString()})(${JSON.stringify({ limit: args.limit })})`,
-        returnByValue: true
-      }, session.tabId)
-      return result?.value ?? { items: [], total: 0, returned: 0, truncated: false }
+      const value = await evaluateInPage(
+        session,
+        null,
+        `(${compactSnapshotInPage.toString()})(${JSON.stringify({ limit: args.limit })})`
+      )
+      const snapshot = value ?? { items: [], total: 0, returned: 0, truncated: false }
+      // Cross-origin frames are separate documents: snapshot each and splice its
+      // items in with a frame-prefixed selector and page coordinates.
+      for (const child of [...(session.children?.values() ?? [])]) {
+        if (!child.url) continue
+        const frame = await evaluateInPage(session, null, `(() => {
+          const wanted = ${JSON.stringify(child.url)};
+          const frames = [...document.querySelectorAll('iframe')];
+          const el = frames.find((node) => node.src && (node.src === wanted || node.src.split('?')[0] === wanted.split('?')[0]));
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          const candidate = 'iframe[src="' + String(el.src).replace(/"/g, '\\"') + '"]';
+          let unique = false;
+          try { unique = document.querySelectorAll(candidate).length === 1; } catch {}
+          return { x: rect.left, y: rect.top, selector: unique ? candidate : 'iframe:nth-of-type(' + (frames.indexOf(el) + 1) + ')' };
+        })()`).catch(() => null)
+        if (!frame) continue
+        const childSnapshot = await evaluateInPage(session, child, `(${compactSnapshotInPage.toString()})(${JSON.stringify({ limit: args.limit })})`).catch(() => null)
+        if (!childSnapshot?.items) continue
+        for (const item of childSnapshot.items) {
+          snapshot.items.push({
+            ...item,
+            selector: `${frame.selector} >>> ${item.selector}`,
+            frame: child.url,
+            box: { x: item.box.x + frame.x, y: item.box.y + frame.y, w: item.box.w, h: item.box.h }
+          })
+        }
+        snapshot.total += childSnapshot.total ?? childSnapshot.items.length
+      }
+      snapshot.returned = snapshot.items.length
+      snapshot.truncated = snapshot.total > snapshot.items.length
+      return snapshot
     }
     case 'text.get': {
       const session = requireSession(args.tabId)
       const maxChars = Math.max(20, Math.min(Number(args.maxChars ?? 8000), 40000))
-      const root = args.selector ? `__dshDeep(${JSON.stringify(String(args.selector))})` : 'document.body'
-      const { result } = await cdp('Runtime.evaluate', {
-        expression: `(() => {
+      const ctx = args.selector
+        ? await selectorContext(session, String(args.selector))
+        : { child: null, selector: null, dx: 0, dy: 0 }
+      // __dshDeep returns { el, ox, oy }, not an element.
+      const root = ctx.selector
+        ? `((__dshDeep(${JSON.stringify(ctx.selector)}) || {}).el || null)`
+        : 'document.body'
+      const value = await evaluateInPage(session, ctx.child, `(() => {
           ${PAGE_RESOLVER}
           const root = ${root};
           if (!root) return { error: 'element not found' };
@@ -1766,10 +1860,8 @@ async function dispatch(op, args) {
             url: location.href,
             title: document.title
           };
-        })()`,
-        returnByValue: true
-      }, session.tabId)
-      return result?.value ?? { text: '', chars: 0, truncated: false }
+        })()`)
+      return value ?? { text: '', chars: 0, truncated: false }
     }
     case 'net.start': {
       const session = requireSession(args.tabId)
