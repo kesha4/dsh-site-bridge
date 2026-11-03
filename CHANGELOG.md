@@ -13,6 +13,19 @@ three at once.
 
 _Nothing yet._
 
+## [0.11.0] — 2026-11-04
+
+### Added
+
+- **Pause button in the popup.** One click cuts the link inside the browser: the worker stops polling,
+  marks itself disconnected for the bridge and refuses every command. No tool can reach the extension
+  or turn the link back on — only that button (or the person reopening the popup) can, and the flag is
+  kept in `chrome.storage`, so it survives a worker restart. While paused the popup says so and dims
+  its actions.
+- `test/pause.mjs` (9 checks) and a bridge-level check that a pause event marks the extension
+  unreachable.
+
+
 ## [0.10.0] — 2026-11-03
 
 ### Added

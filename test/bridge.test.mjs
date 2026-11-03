@@ -185,3 +185,24 @@ test('target events keep the fields the extension adds', async () => {
     await bridge.close()
   }
 })
+
+test('a pause event marks the extension unreachable', async () => {
+  const bridge = await startBridge()
+  try {
+    await fetch(`http://127.0.0.1:${bridge.port}/v1/evt`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ kind: 'hello', version: '0.11.0', browser: 'Chrome/156' })
+    })
+    await fetch(`http://127.0.0.1:${bridge.port}/v1/evt`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ kind: 'pause', at: Date.now() })
+    })
+    const state = bridge.state()
+    assert.equal(state.clientConnected, false)
+    assert.equal(state.clientVersion, null)
+  } finally {
+    await bridge.close()
+  }
+})

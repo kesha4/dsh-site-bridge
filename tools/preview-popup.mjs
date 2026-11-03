@@ -32,6 +32,14 @@ const statuses = {
       { id: 4, title: 'Example Store — Orders', url: 'https://shop.example/orders', recording: false, captured: 0 }
     ]
   },
+  paused: {
+    ok: true, configured: true, connected: false, paused: true, port: 47321, recording: false, captured: 0, selfTabId: 1,
+    activeTabId: 1,
+    target: { id: 1, title: 'Example Store — Products', url: 'https://shop.example/products' },
+    targets: [
+      { id: 1, title: 'Example Store — Products', url: 'https://shop.example/products', recording: false, captured: 0 }
+    ]
+  },
   'connected-one': {
     ok: true, configured: true, connected: true, port: 47321, recording: false, captured: 0, selfTabId: 1,
     activeTabId: 1,

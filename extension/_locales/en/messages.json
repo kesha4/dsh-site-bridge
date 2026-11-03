@@ -152,5 +152,17 @@
   },
   "notClaimable": {
     "message": "This page cannot be attached: Chrome does not allow service pages or other extensions' pages"
+  },
+  "pauseHint": {
+    "message": "Pause the link with the agent"
+  },
+  "resumeHint": {
+    "message": "Resume the link with the agent"
+  },
+  "statusPaused": {
+    "message": "Paused — the agent cannot reach this extension"
+  },
+  "pauseNote": {
+    "message": "The link is cut inside the browser. Only this button can restore it; no tool can."
   }
 }

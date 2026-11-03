@@ -152,5 +152,17 @@
   },
   "notClaimable": {
     "message": "无法连接此页面：Chrome 不允许访问服务页面或其他扩展的页面"
+  },
+  "pauseHint": {
+    "message": "暂停与智能体的连接"
+  },
+  "resumeHint": {
+    "message": "恢复与智能体的连接"
+  },
+  "statusPaused": {
+    "message": "已暂停——智能体无法连接此扩展"
+  },
+  "pauseNote": {
+    "message": "连接在浏览器内部被切断。只有此按钮可以恢复，任何工具都无法恢复。"
   }
 }

@@ -56,9 +56,34 @@ function requireSession(tabId) {
 /* ------------------------------------------------------------------ config */
 
 async function loadCfg() {
-  const stored = await chrome.storage.local.get({ port: 47321, token: '', maxBodyChars: DEFAULT_MAX_BODY_CHARS })
+  const stored = await chrome.storage.local.get({
+    port: 47321,
+    token: '',
+    paused: false,
+    maxBodyChars: DEFAULT_MAX_BODY_CHARS
+  })
   state.maxBodyChars = Number(stored.maxBodyChars) || DEFAULT_MAX_BODY_CHARS
-  return { port: Number(stored.port) || 47321, token: String(stored.token || '') }
+  state.paused = stored.paused === true
+  return { port: Number(stored.port) || 47321, token: String(stored.token || ''), paused: state.paused }
+}
+
+/**
+ * The pause is owned by the person at the keyboard, not by the bridge: while it
+ * is on the worker stops polling and refuses every command, so an agent cannot
+ * reach the extension nor turn it back on. Only the popup clears it.
+ */
+async function setPaused(on) {
+  state.paused = on === true
+  await chrome.storage.local.set({ paused: state.paused })
+  state.lastPollOk = 0
+  state.lastError = null
+  state.attempts = 0
+  if (state.paused) {
+    await evt('pause', { at: Date.now() }).catch(() => {})
+    return state.paused
+  }
+  void ensureLoop()
+  return state.paused
 }
 
 function baseUrl(cfg) {
@@ -105,6 +130,10 @@ async function ensureLoop() {
       state.lastTick = Date.now()
       try {
         const cfg = await loadCfg()
+        if (cfg.paused) {
+          await sleep(1000)
+          continue
+        }
         if (!cfg.token) {
           await sleep(1500)
           continue
@@ -202,7 +231,8 @@ async function handleMessageInner(message) {
       ok: true,
       configured: cfg.token !== '',
       port: cfg.port,
-      connected: state.lastPollOk > 0 && Date.now() - state.lastPollOk < 45000,
+      paused: state.paused === true,
+      connected: state.paused !== true && state.lastPollOk > 0 && Date.now() - state.lastPollOk < 45000,
       lastError: state.lastError ?? null,
       attempts: state.attempts || 0,
       loopAlive: looping,
@@ -221,6 +251,10 @@ async function handleMessageInner(message) {
       picking: active?.picking === true,
       picks: active?.picks?.length ?? 0
     }
+  }
+  if (message?.type === 'pause') {
+    await setPaused(message.on === true)
+    return { ok: true, paused: state.paused }
   }
   if (message?.type === 'pick-arm') {
     const session = requireSession(message.tabId)
@@ -1665,6 +1699,9 @@ function snapshotInPage(options) {
  * behave exactly like the wire protocol.
  */
 async function handle(op, args = {}) {
+  if (state.paused && op !== 'ping') {
+    throw new Error('расширение на паузе: связь разорвана со стороны браузера, включить её может только человек в попапе')
+  }
   const previous = state.commandTabId
   if (args?.tabId != null && args.tabId !== '') state.commandTabId = Number(args.tabId)
   try {
@@ -2030,4 +2067,4 @@ void ensureLoop()
 // Reachable only from inside this worker's context (CDP during development,
 // or a future options page). It exposes nothing the extension could not
 // already do, and no page can reach it.
-globalThis.__dshSiteBridge = { state, claimTab, attach, detach, handle, setRecording, EXT_VERSION }
+globalThis.__dshSiteBridge = { state, claimTab, attach, detach, handle, setRecording, setPaused, EXT_VERSION }

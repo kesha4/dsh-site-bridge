@@ -76,13 +76,19 @@ function render(status) {
 
   // While the bridge is being looked for, a spinner plus an attempt counter
   // says "this is in progress, waiting is fine" instead of a dead end.
-  const connecting = configured && !connected
+  const connecting = !paused && configured && !connected
   const spin = $('spin')
   dot.className = 'dot'
   dot.hidden = connecting
   spin.hidden = !connecting
 
-  if (connected) {
+  const paused = status.paused === true
+  if (paused) {
+    dot.hidden = false
+    dot.classList.add('warn')
+    text.textContent = t('statusPaused')
+    setNote(t('pauseNote'))
+  } else if (connected) {
     dot.classList.add('ok')
     text.textContent = t('statusConnected')
   } else if (connecting) {
@@ -142,19 +148,24 @@ function render(status) {
   // do not offer a button that Chrome will refuse.
   const claimable = selfTabUrl == null || /^(https?|file):/.test(selfTabUrl)
   claim.hidden = targets.length > 0
-  claim.disabled = !connected || !claimable || targets.length > 0
+  claim.disabled = paused || !connected || !claimable || targets.length > 0
   claim.title = claimable ? '' : t('notClaimable')
   claim.textContent = t('connectTab')
   const claimMore = $('claim-more')
   claimMore.hidden = targets.length === 0 || selfAttached
-  claimMore.disabled = !connected || !claimable
+  claimMore.disabled = paused || !connected || !claimable
   claimMore.title = claimable ? t('attachAnother') : t('notClaimable')
 
   const pick = $('pick')
   pick.classList.toggle('active', status.picking === true)
-  pick.disabled = !connected || !hasTarget
+  pick.disabled = paused || !connected || !hasTarget
+  $('pause').classList.toggle('paused', paused)
+  $('pause').title = paused ? t('resumeHint') : t('pauseHint')
+  $('pause').innerHTML = paused
+    ? '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 L10 6 L3 10.5 Z" fill="currentColor"/></svg>'
+    : '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 2 H5.5 V10 H3.5 Z M6.5 2 H8.5 V10 H6.5 Z" fill="currentColor"/></svg>'
 
-  capture.disabled = !connected
+  capture.disabled = paused || !connected
   capture.textContent = status.recording ? t('captureShortOn') : t('captureShortOff')
   $('captured').textContent = t('records', [String(status.captured || 0)])
   $('endpoint').textContent = `127.0.0.1:${status.port || 47321}`
@@ -346,6 +357,12 @@ $('tabs-list').addEventListener('click', async (event) => {
     await refresh()
     return
   }
+})
+
+$('pause').addEventListener('click', async () => {
+  const current = await send({ type: 'status' })
+  await send({ type: 'pause', on: current?.paused !== true })
+  await refresh()
 })
 
 $('pick').addEventListener('click', async () => {
