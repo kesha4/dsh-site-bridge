@@ -164,5 +164,8 @@
   },
   "pauseNote": {
     "message": "The link is cut inside the browser. Only this button can restore it; no tool can."
+  },
+  "popupStale": {
+    "message": "The extension was reloaded — close and reopen this popup"
   }
 }

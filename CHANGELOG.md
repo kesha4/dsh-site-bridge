@@ -13,6 +13,16 @@ three at once.
 
 _Nothing yet._
 
+## [0.11.1] — 2026-11-04
+
+### Fixed
+
+- **The popup could sit on "Служба расширения не отвечает" forever.** A message to a sleeping worker, or
+  to a popup whose extension was just reloaded ("Extension context invalidated"), rejected once and the
+  popup showed a dead end. `send` now retries three times, and the note shows the actual reason — with a
+  specific hint when the extension was reloaded and the popup must be reopened.
+
+
 ## [0.11.0] — 2026-11-04
 
 ### Added

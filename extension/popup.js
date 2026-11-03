@@ -1,7 +1,34 @@
 const $ = (id) => document.getElementById(id)
 const MIN_TOKEN_LENGTH = 16
 
-const send = (message) => chrome.runtime.sendMessage(message)
+const sleep = (ms) => new Promise((done) => setTimeout(done, ms))
+
+/**
+ * A reloaded extension invalidates this popup's context, and a sleeping worker
+ * sometimes rejects the first message. Retry, and remember why it failed so the
+ * popup can say something truer than "not responding".
+ */
+let lastSendError = null
+
+const send = async (message) => {
+  let failure = null
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const reply = await chrome.runtime.sendMessage(message)
+      if (reply !== undefined) {
+        lastSendError = null
+        return reply
+      }
+      failure = new Error('empty reply')
+    } catch (error) {
+      failure = error
+      if (/context invalidated/i.test(String(error?.message ?? error))) break
+    }
+    await sleep(120 + attempt * 120)
+  }
+  lastSendError = String(failure?.message ?? failure)
+  throw failure ?? new Error('no reply')
+}
 
 /** chrome.i18n with a readable fallback when a key is missing. */
 const t = (key, substitutions) => {
@@ -67,6 +94,8 @@ function render(status) {
     text.textContent = t('statusWorkerDown')
     claim.disabled = true
     capture.disabled = true
+    const stale = /context invalidated|Receiving end does not exist/i.test(String(lastSendError ?? ''))
+    setNote(stale ? t('popupStale') : String(lastSendError ?? t('statusWorkerDown')), true)
     return
   }
 
