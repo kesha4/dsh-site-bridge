@@ -176,5 +176,8 @@
   },
   "agentAsksNote": {
     "message": "An agent tried to act and is waiting for your decision. Press play to allow it, or leave the pause on."
+  },
+  "pausedRefusal": {
+    "message": "The extension is paused: the person turned browser actions off. Ask the user to open the DSH Site Bridge popup and press play — only they can resume, the agent cannot."
   }
 }

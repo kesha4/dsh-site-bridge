@@ -189,6 +189,13 @@ try {
     if (exceptionDetails) throw new Error(exceptionDetails.exception?.description ?? exceptionDetails.text)
     return result?.value
   }
+  // The worker target exists before its module evaluates; wait for the hook.
+  await waitFor('worker hook ready', async () => {
+    const ready = await inWorker('typeof __dshSiteBridge !== "undefined"')
+    return ready === true ? true : null
+  }, 15000)
+  // The extension starts paused on purpose; the test resumes it as the person would.
+  await inWorker('__dshSiteBridge.setPaused(false).then(() => true)')
   await inWorker(`chrome.storage.local.set({ port: ${credentials.port}, token: ${JSON.stringify(credentials.token)} }).then(() => 'ok')`)
 
   const status = await waitFor('site_status to report a connection', async () => {
@@ -210,8 +217,6 @@ try {
   })
   await sleep(400)
 
-  // The extension starts paused on purpose; tests act as the person resuming it.
-  await inWorker('__dshSiteBridge.setPaused(false).then(() => true)')
   const tabs = await tools.get('site_tabs').execute({ action: 'list' }, {})
   check('site_tabs lists the page', /\[\d+\]/.test(tabs.summary), tabs.summary)
 

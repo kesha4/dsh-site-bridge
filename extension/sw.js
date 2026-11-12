@@ -77,10 +77,84 @@ async function loadCfg() {
 let blinkTimer = null
 
 /** Paints the stop sign; while paused a knock is visible without opening the popup. */
+/**
+ * Draws the toolbar icon with a status mark baked in. Chrome's text badge is a
+ * corner glyph that cannot be sized or centred, so the mark is painted onto the
+ * icon bitmap instead.
+ */
+const iconCache = new Map()
+
+function statusGlyph(kind) {
+  if (kind === 'knock') return { fill: '#e0574b', ring: '#ffffff', glyph: '!' }
+  if (kind === 'paused') return { fill: '#f0a04d', ring: '#14161b', glyph: 'II' }
+  return null
+}
+
+async function drawIcon(kind) {
+  if (iconCache.has(kind)) return iconCache.get(kind)
+  const size = 128
+  const canvas = new OffscreenCanvas(size, size)
+  const ctx = canvas.getContext('2d')
+  const bitmap = await createImageBitmap(await (await fetch(chrome.runtime.getURL('icons/icon-128.png'))).blob())
+  ctx.drawImage(bitmap, 0, 0, size, size)
+
+  const mark = statusGlyph(kind)
+  if (mark) {
+    // A solid circle in the lower-right, big enough to read at 16 px, with the
+    // glyph optically centred (the "!" hangs slightly right, so nudge it).
+    // 36 % keeps the whale readable while the glyph survives 16 px.
+    const r = size * 0.36
+    const cx = size - r - size * 0.03
+    const cy = size - r - size * 0.03
+    ctx.beginPath()
+    ctx.arc(cx, cy, r + size * 0.035, 0, Math.PI * 2)
+    ctx.fillStyle = mark.ring
+    ctx.fill()
+    ctx.beginPath()
+    ctx.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx.fillStyle = mark.fill
+    ctx.fill()
+
+    ctx.fillStyle = '#ffffff'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    if (mark.glyph === '!') {
+      ctx.font = `700 ${Math.round(r * 1.5)}px "Segoe UI", Arial, sans-serif`
+      ctx.fillText('!', cx, cy + r * 0.06)
+    } else {
+      ctx.font = `700 ${Math.round(r * 0.95)}px "Segoe UI", Arial, sans-serif`
+      ctx.fillText('II', cx, cy + r * 0.04)
+    }
+  }
+
+  const imageData = ctx.getImageData(0, 0, size, size)
+  iconCache.set(kind, imageData)
+  return imageData
+}
+
+const ICON_PATHS = {
+  16: 'icons/icon-16.png',
+  32: 'icons/icon-32.png',
+  48: 'icons/icon-48.png',
+  128: 'icons/icon-128.png'
+}
+
 async function paintBadge() {
-  const text = state.paused ? (state.knockAt ? '!' : 'II') : ''
-  await chrome.action.setBadgeText({ text }).catch(() => {})
-  await chrome.action.setBadgeBackgroundColor({ color: state.knockAt ? '#e0574b' : '#f0a04d' }).catch(() => {})
+  const kind = !state.paused ? 'normal' : state.knockAt ? 'knock' : 'paused'
+  state.iconKind = kind
+
+  if (kind === 'knock') {
+    // The mark is painted into the icon: big, centred, readable at 16 px.
+    await chrome.action.setBadgeText({ text: '' }).catch(() => {})
+    const image = await drawIcon('knock').catch(() => null)
+    if (image) await chrome.action.setIcon({ imageData: image }).catch(() => {})
+  } else {
+    // Paused and normal keep the plain icon; paused still shows the small "II".
+    await chrome.action.setIcon({ path: ICON_PATHS }).catch(() => {})
+    await chrome.action.setBadgeBackgroundColor({ color: '#f0a04d' }).catch(() => {})
+    await chrome.action.setBadgeText({ text: kind === 'paused' ? 'II' : '' }).catch(() => {})
+  }
+
   await chrome.action
     .setTitle({
       title: state.paused
@@ -95,18 +169,32 @@ async function paintBadge() {
 /** Blinks the badge so a knock is noticed even when the popup is closed. */
 async function blinkBadge() {
   if (blinkTimer) clearInterval(blinkTimer)
-  let on = true
+  const knock = await drawIcon('knock').catch(() => null)
+  if (!knock) return
+  // Alternate the two states a person already knows: the pause mark and the
+  // knock mark, so the change is noticeable at a glance.
+  // Ten full flashes: each cycle shows the pause mark, then the knock mark.
+  const CYCLES = 10
+  const STEP_MS = 500
+  let showKnock = true
   let ticks = 0
   blinkTimer = setInterval(() => {
     ticks += 1
-    on = !on
-    void chrome.action.setBadgeText({ text: on ? '!' : ' ' }).catch(() => {})
-    if (ticks >= 12) {
+    showKnock = !showKnock
+    if (showKnock) {
+      void chrome.action.setIcon({ imageData: knock }).catch(() => {})
+      void chrome.action.setBadgeText({ text: '' }).catch(() => {})
+    } else {
+      void chrome.action.setIcon({ path: ICON_PATHS }).catch(() => {})
+      void chrome.action.setBadgeBackgroundColor({ color: '#f0a04d' }).catch(() => {})
+      void chrome.action.setBadgeText({ text: 'II' }).catch(() => {})
+    }
+    if (ticks >= CYCLES * 2) {
       clearInterval(blinkTimer)
       blinkTimer = null
       void paintBadge()
     }
-  }, 500)
+  }, STEP_MS)
 }
 
 async function setPaused(on) {
@@ -1739,15 +1827,17 @@ function snapshotInPage(options) {
  * behave exactly like the wire protocol.
  */
 async function handle(op, args = {}) {
-  if (state.paused && op !== 'ping' && op !== 'pause.state') {
+  if (state.paused && op !== 'ping' && op !== 'pause.state' && op !== 'pause.knock') {
     state.knockAt = Date.now()
     state.knockOp = String(op)
     void blinkBadge()
     void evt('pause-knock', { op: String(op), at: state.knockAt }).catch(() => {})
+    const localized = chrome.i18n.getMessage('pausedRefusal')
     throw new Error(
-      'расширение на паузе: действия в браузере выключены человеком. ' +
-        'Скажите пользователю открыть попап DSH Site Bridge и нажать «play» — только он может снять паузу. ' +
-        'Сам агент этого сделать не может.'
+      localized ||
+        'расширение на паузе: действия в браузере выключены человеком. ' +
+          'Скажите пользователю открыть попап DSH Site Bridge и нажать «play» — только он может снять паузу. ' +
+          'Сам агент этого сделать не может.'
     )
   }
   const previous = state.commandTabId
@@ -1761,6 +1851,13 @@ async function handle(op, args = {}) {
 
 async function dispatch(op, args) {
   switch (op) {
+    case 'pause.knock': {
+      state.knockAt = Date.now()
+      state.knockOp = String(args.op ?? 'action')
+      void blinkBadge()
+      void evt('pause-knock', { op: state.knockOp, at: state.knockAt }).catch(() => {})
+      return { paused: state.paused === true, knockAt: state.knockAt }
+    }
     case 'ping':
       return { ok: true, version: EXT_VERSION, paused: state.paused === true }
     case 'tabs.list': {

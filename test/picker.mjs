@@ -117,6 +117,11 @@ try {
   }
 
   // The extension starts paused on purpose; tests act as the person resuming it.
+  // The worker target appears before its module finishes evaluating.
+  await waitFor('worker hook ready', async () => {
+    const ready = await inWorker('typeof __dshSiteBridge !== "undefined"')
+    return ready === true ? true : null
+  }, 15000)
   await inWorker('__dshSiteBridge.setPaused(false).then(() => true)')
   const tabId = await waitFor('tab id', async () => {
     const tabs = await inWorker(`chrome.tabs.query({}).then((ts) => ts.filter((t) => (t.url || '').startsWith('http://127.0.0.1:')).map((t) => t.id))`)

@@ -13,6 +13,18 @@ three at once.
 
 _Nothing yet._
 
+## [0.12.1] — 2026-11-12
+
+### Changed
+
+- **The knock mark is painted into the icon, not set as text.** Chrome's corner badge could not be sized
+  or centred, so the "!" now lives in a red circle at 36 % of the icon — readable at 16 px. The calm
+  paused state keeps the small "II" badge it had before.
+- Blinking alternates the two states a person already knows: the pause badge and the "!" mark.
+- The paused refusal is localized (`pausedRefusal`): English, Russian or Chinese by the browser UI
+  language, with a Russian fallback.
+
+
 ## [0.12.0] — 2026-11-12
 
 ### Changed

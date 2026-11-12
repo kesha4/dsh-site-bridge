@@ -176,5 +176,8 @@
   },
   "agentAsksNote": {
     "message": "智能体尝试执行操作，正在等待你的决定。点击 play 允许，或保持暂停。"
+  },
+  "pausedRefusal": {
+    "message": "扩展已暂停：用户关闭了浏览器操作。请让用户打开 DSH Site Bridge 弹出窗口并点击 play——只有用户可以恢复，智能体无法恢复。"
   }
 }

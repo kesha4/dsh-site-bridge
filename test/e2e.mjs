@@ -225,6 +225,11 @@ async function main() {
   }
 
   // A fresh profile starts paused on purpose; the test resumes as the person would.
+  // The worker target appears before its module finishes evaluating.
+  await waitFor('worker hook ready', async () => {
+    const ready = await evalInWorker('typeof __dshSiteBridge !== "undefined"')
+    return ready === true ? true : null
+  }, 15000)
   await evalInWorker('__dshSiteBridge.setPaused(false).then(() => true)')
   await evalInWorker(
     `chrome.storage.local.set({ port: ${bridge.port}, token: ${JSON.stringify(TOKEN)} }).then(() => 'saved')`

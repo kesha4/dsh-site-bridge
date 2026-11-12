@@ -97,16 +97,17 @@ try {
     return result?.value
   }
 
-  // A fresh profile starts paused: a browser is not handed to an agent by default.
-  const fresh = await inWorker(`({ paused: __dshSiteBridge.state.paused === true })`)
-  check('a fresh install starts paused', fresh?.paused === true, JSON.stringify(fresh))
-
-  await inWorker(`__dshSiteBridge.setPaused(false).then(() => true)`)
   // The worker target appears before its module finishes evaluating.
   await waitFor('worker hook', async () => {
     const ready = await inWorker('typeof __dshSiteBridge !== "undefined"')
     return ready === true ? true : null
   }, 15000)
+
+  // A fresh profile starts paused: a browser is not handed to an agent by default.
+  const fresh = await inWorker(`({ paused: __dshSiteBridge.state.paused === true })`)
+  check('a fresh install starts paused', fresh?.paused === true, JSON.stringify(fresh))
+
+  await inWorker(`__dshSiteBridge.setPaused(false).then(() => true)`)
 
   const tabId = await waitFor('tab id', async () => {
     const tabs = await inWorker(`chrome.tabs.query({}).then((ts) => ts.filter((t) => (t.url || '').startsWith('${base}')).map((t) => t.id))`)
@@ -119,6 +120,11 @@ try {
   const after = await inWorker(`({ paused: __dshSiteBridge.state.paused === true })`)
   check('the worker is paused', after?.paused === true, JSON.stringify(after))
 
+  const calm = await inWorker(`({ kind: __dshSiteBridge.state.iconKind, badge: null })`)
+  check('the calm pause keeps the II badge', calm?.kind === 'paused', JSON.stringify(calm))
+  const calmBadge = await inWorker(`chrome.action.getBadgeText({}).then((text) => text)`)
+  check('the calm pause still shows II', calmBadge === 'II', JSON.stringify(calmBadge))
+
   const storedPaused = await inWorker(`chrome.storage.local.get({ paused: false }).then((s) => s.paused)`)
   check('the pause survives a worker restart (stored)', storedPaused === true, JSON.stringify(storedPaused))
 
@@ -129,19 +135,23 @@ try {
   const knock = await inWorker(`({ at: __dshSiteBridge.state.knockAt, op: __dshSiteBridge.state.knockOp })`)
   check('a refused command is recorded as a knock', knock?.op === 'act' && Number(knock?.at) > 0, JSON.stringify(knock))
 
+  // The host refuses early but still tells the extension, so the icon blinks.
+  const knocked = await inWorker(`__dshSiteBridge.handle('pause.knock', { op: 'site_act' }).then((r) => r)`)
+  check('the host can raise a knock explicitly', Number(knocked?.knockAt) > 0, JSON.stringify(knocked))
+
   const ping = await inWorker(`__dshSiteBridge.handle('ping', {}).then((r) => r)`)
   check('ping answers with the pause state', ping?.ok === true && ping?.paused === true, JSON.stringify(ping))
 
-  // The badge survives the blink and ends as a stop sign.
-  await new Promise((done) => setTimeout(done, 7000))
-  const badge = await inWorker(`chrome.action.getBadgeText({}).then((text) => text)`)
-  check('the icon shows the pause on its badge', badge === '!', JSON.stringify(badge))
+  // The mark is painted into the icon; after the blink it settles as "knock".
+  await new Promise((done) => setTimeout(done, 11000))
+  const painted = await inWorker(`({ kind: __dshSiteBridge.state.iconKind, badge: null })`)
+  check('the icon is painted with the knock mark', painted?.kind === 'knock', JSON.stringify(painted))
 
   await inWorker(`__dshSiteBridge.setPaused(false).then(() => true)`)
   const resumed = await inWorker(`({ paused: __dshSiteBridge.state.paused === true, knock: __dshSiteBridge.state.knockAt })`)
   check('unpause clears the flag and the knock', resumed?.paused === false && resumed?.knock == null, JSON.stringify(resumed))
-  const clearedBadge = await inWorker(`chrome.action.getBadgeText({}).then((text) => text)`)
-  check('the badge is cleared after resuming', clearedBadge === '', JSON.stringify(clearedBadge))
+  const cleared = await inWorker(`__dshSiteBridge.state.iconKind`)
+  check('the icon returns to normal after resuming', cleared === 'normal', JSON.stringify(cleared))
 
   const acted = await inWorker(`__dshSiteBridge.handle('act', { steps: [{ op: 'exists', selector: '#b' }] }).then((r) => r.results[0].ok)`)
   check('commands work again after unpause', acted === true, JSON.stringify(acted))

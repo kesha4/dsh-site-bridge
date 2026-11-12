@@ -115,6 +115,11 @@ try {
   })
 
   // The extension starts paused; the test resumes it like the person would.
+  // The worker target appears before its module finishes evaluating.
+  await waitFor('worker hook ready', async () => {
+    const ready = await evaluate('typeof __dshSiteBridge !== "undefined"')
+    return ready === true ? true : null
+  }, 15000)
   await evaluate('__dshSiteBridge.setPaused(false).then(() => true)')
   await evaluate(`__dshSiteBridge.claimTab(${tabs[0]}).then((t) => t)`)
   await evaluate(`__dshSiteBridge.claimTab(${tabs[1]}).then((t) => t)`)
