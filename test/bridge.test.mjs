@@ -186,22 +186,28 @@ test('target events keep the fields the extension adds', async () => {
   }
 })
 
-test('a pause event marks the extension unreachable', async () => {
+test('a pause keeps the extension reachable but switches it to paused', async () => {
   const bridge = await startBridge()
   try {
-    await fetch(`http://127.0.0.1:${bridge.port}/v1/evt`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ kind: 'hello', version: '0.11.0', browser: 'Chrome/156' })
-    })
-    await fetch(`http://127.0.0.1:${bridge.port}/v1/evt`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ kind: 'pause', at: Date.now() })
-    })
-    const state = bridge.state()
-    assert.equal(state.clientConnected, false)
-    assert.equal(state.clientVersion, null)
+    const post = (body) =>
+      fetch(`http://127.0.0.1:${bridge.port}/v1/evt`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(body)
+      })
+    await post({ kind: 'hello', version: '0.12.0', browser: 'Chrome/156' })
+    await post({ kind: 'pause', at: Date.now() })
+    const paused = bridge.state()
+    // The channel stays open: the agent must be able to ask and be told why.
+    assert.equal(paused.clientConnected, true)
+    assert.equal(paused.paused, true)
+
+    await post({ kind: 'pause-knock', op: 'act', at: Date.now() })
+    assert.equal(bridge.state().knock?.op, 'act')
+
+    await post({ kind: 'resume', at: Date.now() })
+    const resumed = bridge.state()
+    assert.equal(resumed.paused, false)
   } finally {
     await bridge.close()
   }

@@ -88,6 +88,11 @@
       button.icon:hover:not(:disabled) { color: var(--text); border-color: #3a4150; }
       button.icon.active { color: var(--accent); border-color: var(--accent); }
       button.icon.paused { color: var(--warn); border-color: var(--warn); background: rgba(240, 160, 77, 0.08); }
+      button.icon.knocking { color: var(--err); border-color: var(--err); animation: knock 0.7s ease-in-out 5; }
+      @keyframes knock {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(224, 87, 75, 0); }
+        50% { box-shadow: 0 0 0 5px rgba(224, 87, 75, 0.35); }
+      }
       button.ghost:hover:not(:disabled) { color: var(--text); }
       button.link {
         padding: 0; border: none; background: none; color: var(--accent);

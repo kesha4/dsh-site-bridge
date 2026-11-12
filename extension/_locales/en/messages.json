@@ -163,12 +163,18 @@
     "message": "Paused — the agent cannot reach this extension"
   },
   "pauseNote": {
-    "message": "The link is cut inside the browser. Only this button can restore it; no tool can."
+    "message": "Actions in the browser are off. The agent sees this and will ask you to resume; only this button can."
   },
   "popupStale": {
     "message": "The extension was reloaded — close and reopen this popup"
   },
   "restartWorker": {
     "message": "Restart the extension service"
+  },
+  "agentAsks": {
+    "message": "The agent asks for permission to act in the browser"
+  },
+  "agentAsksNote": {
+    "message": "An agent tried to act and is waiting for your decision. Press play to allow it, or leave the pause on."
   }
 }

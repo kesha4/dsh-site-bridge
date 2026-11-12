@@ -13,6 +13,28 @@ three at once.
 
 _Nothing yet._
 
+## [0.12.0] — 2026-11-12
+
+### Changed
+
+- **A browser starts paused.** A fresh install has actions off, and every browser start pauses again
+  (`chrome.runtime.onStartup`); only the person resumes it in the popup. Nothing silently hands a
+  browser to an agent.
+- **Pause now answers instead of vanishing.** The worker keeps polling while paused and replies to every
+  command with an explanation: actions are off, the person has to press play, the agent cannot. Tools
+  short-circuit on the bridge's pause flag with the same wording, and `site_status` prints a
+  `ПАУЗА: …` line, so the model can relay it instead of guessing.
+- **A knock is visible.** When an agent tries something while paused, the toolbar icon shows a stop sign
+  and blinks, the popup says "Агент просит разрешение на действия в браузере" with a hint, and the play
+  button is outlined in red.
+
+### Tests
+
+- `test/pause.mjs` is 12 checks: fresh install starts paused, refusal wording, knock recorded, badge
+  set and cleared, resume restores commands.
+- Bridge and plugin tests cover pause as a mode (client stays connected) and the tool wording.
+
+
 ## [0.11.2] — 2026-11-04
 
 ### Fixed

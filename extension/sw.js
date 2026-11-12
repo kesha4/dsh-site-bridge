@@ -59,7 +59,9 @@ async function loadCfg() {
   const stored = await chrome.storage.local.get({
     port: 47321,
     token: '',
-    paused: false,
+    // Paused unless this profile has ever resumed it: a fresh install must not
+    // hand a browser to an agent by accident.
+    paused: true,
     maxBodyChars: DEFAULT_MAX_BODY_CHARS
   })
   state.maxBodyChars = Number(stored.maxBodyChars) || DEFAULT_MAX_BODY_CHARS
@@ -72,17 +74,49 @@ async function loadCfg() {
  * is on the worker stops polling and refuses every command, so an agent cannot
  * reach the extension nor turn it back on. Only the popup clears it.
  */
+let blinkTimer = null
+
+/** Paints the stop sign; while paused a knock is visible without opening the popup. */
+async function paintBadge() {
+  const text = state.paused ? (state.knockAt ? '!' : 'II') : ''
+  await chrome.action.setBadgeText({ text }).catch(() => {})
+  await chrome.action.setBadgeBackgroundColor({ color: state.knockAt ? '#e0574b' : '#f0a04d' }).catch(() => {})
+  await chrome.action
+    .setTitle({
+      title: state.paused
+        ? state.knockAt
+          ? 'DSH Site Bridge — агент просит разрешение на действия в браузере'
+          : 'DSH Site Bridge — пауза: действия в браузере выключены'
+        : 'DSH Site Bridge'
+    })
+    .catch(() => {})
+}
+
+/** Blinks the badge so a knock is noticed even when the popup is closed. */
+async function blinkBadge() {
+  if (blinkTimer) clearInterval(blinkTimer)
+  let on = true
+  let ticks = 0
+  blinkTimer = setInterval(() => {
+    ticks += 1
+    on = !on
+    void chrome.action.setBadgeText({ text: on ? '!' : ' ' }).catch(() => {})
+    if (ticks >= 12) {
+      clearInterval(blinkTimer)
+      blinkTimer = null
+      void paintBadge()
+    }
+  }, 500)
+}
+
 async function setPaused(on) {
   state.paused = on === true
+  if (!state.paused) state.knockAt = null
   await chrome.storage.local.set({ paused: state.paused })
-  state.lastPollOk = 0
   state.lastError = null
   state.attempts = 0
-  if (state.paused) {
-    await evt('pause', { at: Date.now() }).catch(() => {})
-    return state.paused
-  }
-  void ensureLoop()
+  await paintBadge()
+  await evt(state.paused ? 'pause' : 'resume', { at: Date.now() }).catch(() => {})
   return state.paused
 }
 
@@ -130,10 +164,6 @@ async function ensureLoop() {
       state.lastTick = Date.now()
       try {
         const cfg = await loadCfg()
-        if (cfg.paused) {
-          await sleep(1000)
-          continue
-        }
         if (!cfg.token) {
           await sleep(1500)
           continue
@@ -141,7 +171,7 @@ async function ensureLoop() {
         const reply = await api(cfg, '/v1/poll?timeout=20000')
         if (!greeted) {
           greeted = true
-          await evt('hello', { version: EXT_VERSION, browser: navigator.userAgent })
+          await evt('hello', { version: EXT_VERSION, browser: navigator.userAgent, paused: state.paused })
           for (const session of state.sessions.values()) {
             await evt('target', { tab: session.target })
             await evt('netcontrol', { recording: session.recording, tabId: session.tabId })
@@ -232,6 +262,8 @@ async function handleMessageInner(message) {
       configured: cfg.token !== '',
       port: cfg.port,
       paused: state.paused === true,
+      knockAt: state.knockAt ?? null,
+      knockOp: state.knockOp ?? null,
       connected: state.paused !== true && state.lastPollOk > 0 && Date.now() - state.lastPollOk < 45000,
       lastError: state.lastError ?? null,
       attempts: state.attempts || 0,
@@ -398,6 +430,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
   void evt('target', { tab: null, tabId })
   void evt('active', { tabId: state.activeTabId })
+})
+
+chrome.runtime.onStartup.addListener(() => {
+  void setPaused(true)
+})
+
+chrome.runtime.onInstalled.addListener(() => {
+  void setPaused(true)
 })
 
 chrome.debugger.onDetach.addListener((source, reason) => {
@@ -1699,8 +1739,16 @@ function snapshotInPage(options) {
  * behave exactly like the wire protocol.
  */
 async function handle(op, args = {}) {
-  if (state.paused && op !== 'ping') {
-    throw new Error('расширение на паузе: связь разорвана со стороны браузера, включить её может только человек в попапе')
+  if (state.paused && op !== 'ping' && op !== 'pause.state') {
+    state.knockAt = Date.now()
+    state.knockOp = String(op)
+    void blinkBadge()
+    void evt('pause-knock', { op: String(op), at: state.knockAt }).catch(() => {})
+    throw new Error(
+      'расширение на паузе: действия в браузере выключены человеком. ' +
+        'Скажите пользователю открыть попап DSH Site Bridge и нажать «play» — только он может снять паузу. ' +
+        'Сам агент этого сделать не может.'
+    )
   }
   const previous = state.commandTabId
   if (args?.tabId != null && args.tabId !== '') state.commandTabId = Number(args.tabId)
@@ -1714,7 +1762,7 @@ async function handle(op, args = {}) {
 async function dispatch(op, args) {
   switch (op) {
     case 'ping':
-      return { ok: true, version: EXT_VERSION }
+      return { ok: true, version: EXT_VERSION, paused: state.paused === true }
     case 'tabs.list': {
       const tabs = await chrome.tabs.query({})
       // Window type explains why a tab can be listed but not read: app windows

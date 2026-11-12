@@ -210,6 +210,8 @@ try {
   })
   await sleep(400)
 
+  // The extension starts paused on purpose; tests act as the person resuming it.
+  await inWorker('__dshSiteBridge.setPaused(false).then(() => true)')
   const tabs = await tools.get('site_tabs').execute({ action: 'list' }, {})
   check('site_tabs lists the page', /\[\d+\]/.test(tabs.summary), tabs.summary)
 

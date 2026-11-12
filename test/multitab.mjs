@@ -114,6 +114,8 @@ try {
     return Array.isArray(list) && list.length >= 2 ? list : null
   })
 
+  // The extension starts paused; the test resumes it like the person would.
+  await evaluate('__dshSiteBridge.setPaused(false).then(() => true)')
   await evaluate(`__dshSiteBridge.claimTab(${tabs[0]}).then((t) => t)`)
   await evaluate(`__dshSiteBridge.claimTab(${tabs[1]}).then((t) => t)`)
 

@@ -224,6 +224,8 @@ async function main() {
     return result?.value
   }
 
+  // A fresh profile starts paused on purpose; the test resumes as the person would.
+  await evalInWorker('__dshSiteBridge.setPaused(false).then(() => true)')
   await evalInWorker(
     `chrome.storage.local.set({ port: ${bridge.port}, token: ${JSON.stringify(TOKEN)} }).then(() => 'saved')`
   )

@@ -152,7 +152,7 @@ pick an element. The agent can do all of that through the tools, including `site
 for any tab it sees in `list`. The attach button is a human gesture, not a permission gate — the
 bridge token is the only thing that decides who may drive the browser.
 
-A pause button in the popup cuts the link from the browser side: the extension stops polling and refuses every command, so no tool can reach it or turn it back on. Only that button restores it, and the state survives a worker restart.
+A browser starts paused: actions are off until a person resumes them in the popup. While paused the extension still answers the agent, so it can say what to do — every tool returns "paused, ask the person to press play", and an attempted action makes the toolbar icon blink. Only that button clears the pause, and the state survives a worker restart.
 
 ## Architecture
 

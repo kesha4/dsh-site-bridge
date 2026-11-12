@@ -247,6 +247,18 @@ test('host half registers every tool and drives the bridge', async (t) => {
   assert.equal(scoped.ok, true, scoped.summary)
   assert.equal(fakeState.lastAct?.tabId, 2, `worker must receive tabId=2, got ${JSON.stringify(fakeState.lastAct)}`)
 
+  // Paused: the tool must say why and what the person has to do.
+  await post({ kind: 'pause', at: Date.now() })
+  const refused = await tools.get('site_act').execute({ steps: JSON.stringify([{ op: 'exists', selector: '#buy' }]) }, {})
+  assert.equal(refused.ok, false)
+  assert.match(refused.summary, /паузе/)
+  assert.match(refused.summary, /play/)
+  const statusWhilePaused = await tools.get('site_status').execute({}, {})
+  assert.match(statusWhilePaused.summary, /ПАУЗА/)
+  await post({ kind: 'resume', at: Date.now() })
+  const afterResume = await tools.get('site_act').execute({ steps: JSON.stringify([{ op: 'exists', selector: '#buy' }]) }, {})
+  assert.equal(afterResume.ok, true, afterResume.summary)
+
   // Consent rule: claiming a tab nobody attached needs an explicit confirmation.
   await assert.rejects(
     () => tools.get('site_tabs').execute({ action: 'claim', tabId: 77 }, {}),

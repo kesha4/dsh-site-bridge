@@ -108,6 +108,8 @@ function render(status) {
   // earlier threw "Cannot access 'paused' before initialization" — which the
   // popup reported as "the extension service is not responding".
   const paused = status.paused === true
+  // An agent knocked while paused: that is a request for the person's decision.
+  const knocked = paused && status.knockAt != null && Date.now() - Number(status.knockAt) < 120000
 
   // While the bridge is being looked for, a spinner plus an attempt counter
   // says "this is in progress, waiting is fine" instead of a dead end.
@@ -119,9 +121,9 @@ function render(status) {
 
   if (paused) {
     dot.hidden = false
-    dot.classList.add('warn')
-    text.textContent = t('statusPaused')
-    setNote(t('pauseNote'))
+    dot.classList.add(knocked ? 'err' : 'warn')
+    text.textContent = knocked ? t('agentAsks') : t('statusPaused')
+    setNote(knocked ? t('agentAsksNote') : t('pauseNote'), knocked)
   } else if (connected) {
     dot.classList.add('ok')
     text.textContent = t('statusConnected')
@@ -194,6 +196,7 @@ function render(status) {
   pick.classList.toggle('active', status.picking === true)
   pick.disabled = paused || !connected || !hasTarget
   $('pause').classList.toggle('paused', paused)
+  $('pause').classList.toggle('knocking', knocked)
   $('pause').title = paused ? t('resumeHint') : t('pauseHint')
   $('pause').innerHTML = paused
     ? '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5 L10 6 L3 10.5 Z" fill="currentColor"/></svg>'
@@ -211,7 +214,9 @@ function render(status) {
     pairingInitialized = true
   }
 
-  if (connecting && status.lastError && (status.attempts || 0) >= 2) {
+  if (paused) {
+    // The pause note (or the agent's knock) must survive the tail of render().
+  } else if (connecting && status.lastError && (status.attempts || 0) >= 2) {
     setNote(explain(status.lastError), true)
   } else if (connected) {
     const note = $('status-note')
